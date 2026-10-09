@@ -207,3 +207,5 @@ grep "Excalidraw" ~/Library/Logs/Claude/claude.ai-web.log | tail -20
 ## Obsidian Excalidraw plugin support
 
 `src/obsidian.ts` + tools `obsidian_list_drawings`, `obsidian_read_drawing`, `obsidian_write_drawing` read/write `.excalidraw.md` files (compressed-json format of obsidian-excalidraw-plugin) in the vault given by the `OBSIDIAN_VAULT` env var. Paths are vault-relative and confined to the vault. Read output is a plain elements array usable as `create_view` input.
+
+Set `EXCALIDRAW_LIB=<path to a local excalidraw package>` at build time (e.g. `obsidian-excalidraw-plugin/node_modules/@zsviczian/excalidraw`, after `npm install` there) to bundle that fork into the widget instead of loading the official build from esm.sh (see `vite.config.ts`). The plugin repo currently has no `node_modules`, so this path is untested.
