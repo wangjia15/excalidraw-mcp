@@ -225,3 +225,5 @@ Slide themes (`src/slide-theme.ts`): `obsidian_write_slides` takes `theme` = bui
 Mindmaps support image nodes (`![alt](vault/path.png)` in the outline): `type: "image"` elements with `fileId = sha1(path)` and `customData.vaultPath`; `buildExcalidrawMd` lists them under `## Embedded Files` as `<fileId>: [[path]]`. Node text wraps at `maxWidth`; `theme` colours the map (root = accent, level-1 text = branch colour, deeper text = ink).
 
 Slides accept `image: {path, caption?}` (vault picture; the MCP tool fills in w/h from the file). Wide images (>2.2:1) go above the bullets, others beside them; images are embedded via `customData.vaultPath` + `fileId = sha1(path)` like mindmap image nodes.
+
+Mindmaps are XMind styled (capsule root, filled level-1 boxes, tinted level-2 boxes, underlined plain text below, tapering curves). With `frames` (default) the result also carries Slideshow marker frames (no children, `frameRendering.clip=false`): an overview + one 16:9 frame per branch, long branches split by `frameHeight`; notes = branch outline. `font`: sans (2) | hand (5) | local (4, plugin Local Font). Right-Left splits branches by measured height.

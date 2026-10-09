@@ -486,10 +486,13 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
         theme: z.string().optional().describe("'fresh' (default) or a Marp theme name from <vault>/theme/<name>.css (campus, blackboard, ink, swiss ...)"),
         maxWidth: z.number().optional().describe("max text width of a node before wrapping (default 460)"),
         imageWidth: z.number().optional().describe("display width of image nodes (default 640)"),
+        font: z.enum(["sans", "hand", "local"]).optional().describe("sans (default; Helvetica -> the OS system UI font, same family Obsidian uses by default), hand (Excalifont) or local (the plugin's Local Font setting, e.g. the font file you use as Obsidian's text font)"),
+        frames: z.boolean().optional().describe("add Slideshow marker frames: an overview + one 16:9 frame per branch (default true)"),
+        frameHeight: z.number().optional().describe("content height that fits one slide before a branch is split into several frames (default 760)"),
         overwrite: z.boolean().optional(),
       },
     },
-    async ({ path, outline, growthMode, theme, maxWidth, imageWidth, overwrite }): Promise<CallToolResult> => {
+    async ({ path, outline, growthMode, theme, maxWidth, imageWidth, font, frames, frameHeight, overwrite }): Promise<CallToolResult> => {
       try {
         const mode = growthMode ?? "Right-Left";
         const th = loadTheme(theme, getVaultRoot());
@@ -499,9 +502,10 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
           if (!sz) throw new Error(`cannot read image size of ${n.img!.path} (use PNG, JPEG, GIF or WebP inside the vault)`);
           n.img!.w = sz.w; n.img!.h = sz.h;
         }
-        const els = buildMindmap(tree, mode, { theme: th, maxWidth, imageWidth });
-        await writeDrawing(path, els, overwrite ?? false, "professional", { appState: { viewBackgroundColor: th.bg, theme: th.dark ? "dark" : "light" } });
-        return text(`Saved mindmap (${els.length} elements, ${mode}, theme ${th.name}) to ${path}`);
+        const els = buildMindmap(tree, mode, { theme: th, maxWidth, imageWidth, frames, frameHeight, fontFamily: { sans: 2, hand: 5, local: 4 }[font ?? "sans"] });
+        await writeDrawing(path, els, overwrite ?? false, "professional", { appState: { viewBackgroundColor: th.bg, theme: th.dark ? "dark" : "light", frameRendering: { enabled: true, clip: false, name: true, outline: true } } });
+        const nFrames = els.filter((e) => e.type === "frame").length;
+        return text(`Saved mindmap (${els.length} elements, ${mode}, theme ${th.name}${nFrames ? `, ${nFrames} slideshow frames` : ""}) to ${path}`);
       } catch (e) { return fail(e); }
     },
   );
