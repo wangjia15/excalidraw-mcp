@@ -115,6 +115,7 @@ export function normalizeIds(elements: any[]): any[] {
   return elements.map((e) => {
     const o = { ...e, id: m(e.id) };
     if (o.containerId) o.containerId = m(o.containerId);
+    if (o.frameId) o.frameId = m(o.frameId);
     if (o.boundElements) o.boundElements = o.boundElements.map((b: any) => ({ ...b, id: m(b.id) }));
     for (const k of ["startBinding", "endBinding"]) if (o[k]) o[k] = { ...o[k], elementId: m(o[k].elementId) };
     return o;

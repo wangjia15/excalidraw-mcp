@@ -7,6 +7,7 @@ import path from "node:path";
 import { deflateSync } from "node:zlib";
 import { z } from "zod/v4";
 import type { CheckpointStore } from "./checkpoint-store.js";
+import { buildSlides } from "./slides.js";
 import { buildMindmap, GROWTH_MODES, parseOutline } from "./mindmap.js";
 import { listDrawings, readDrawing, writeDrawing } from "./obsidian.js";
 
@@ -489,6 +490,27 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
         const els = buildMindmap(parseOutline(outline), mode);
         await writeDrawing(path, els, overwrite ?? false);
         return text(`Saved mindmap (${els.length} elements, ${mode}) to ${path}`);
+      } catch (e) { return fail(e); }
+    },
+  );
+
+  server.registerTool(
+    "obsidian_write_slides",
+    {
+      description: "Generate a slide deck for the Obsidian Excalidraw Slideshow script: one 1920x1080 frame per slide, with order, presenter notes and bullet-by-bullet appear animations stored in the frame metadata the script reads. deck is a JSON string: {title?, slides:[{title, subtitle?, bullets?:string[], code?:string, codeTitle?, flow?:string[], notes?, animate?}]}. The first slide is rendered as a cover.",
+      inputSchema: {
+        path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
+        deck: z.string().describe("JSON deck specification"),
+        overwrite: z.boolean().optional(),
+      },
+    },
+    async ({ path, deck, overwrite }): Promise<CallToolResult> => {
+      try {
+        const spec = JSON.parse(deck);
+        if (!Array.isArray(spec.slides) || !spec.slides.length) throw new Error("deck.slides must be a non-empty array");
+        const els = buildSlides(spec);
+        await writeDrawing(path, els, overwrite ?? false);
+        return text(`Saved ${spec.slides.length} slides (${els.length} elements) to ${path}. Run the Slideshow script in Obsidian to present.`);
       } catch (e) { return fail(e); }
     },
   );
