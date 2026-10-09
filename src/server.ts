@@ -497,7 +497,7 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
   server.registerTool(
     "obsidian_write_slides",
     {
-      description: "Generate a slide deck for the Obsidian Excalidraw Slideshow script: one 1920x1080 frame per slide, with order, presenter notes and bullet-by-bullet appear animations stored in the frame metadata the script reads. deck is a JSON string: {title?, slides:[{title, subtitle?, bullets?:string[], code?:string, codeTitle?, flow?:string[], notes?, animate?}]}. The first slide is rendered as a cover.",
+      description: "Generate a slide deck for the Obsidian Excalidraw Slideshow script: one 1920x1080 frame per slide, with order, presenter notes and bullet-by-bullet appear animations stored in the frame metadata the script reads. deck is a JSON string: {title?, slides:[{title, subtitle?, bullets?:string[], code?:string, codeTitle?, codeLang?, flow?:string[], notes?, layout?, animate?}]}. The first slide is a cover; slides without content become section dividers; a leading number in the title ("3 Foo") becomes a chapter badge. Bullets are auto-rendered as cards ("Head：body" lines), numbered steps (①/1. prefixes), a table (lines with →, HTTP methods get coloured pills) or list rows; override with layout. Code is syntax highlighted (java/ts/vue/yaml/json/http/sh/xml, auto-detected). flow items become a serpentine process diagram.",
       inputSchema: {
         path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
         deck: z.string().describe("JSON deck specification"),
