@@ -10,7 +10,8 @@ import type { CheckpointStore } from "./checkpoint-store.js";
 import { buildSlides } from "./slides.js";
 import { buildTemplate, TEMPLATE_KINDS } from "./templates.js";
 import { buildMindmap, GROWTH_MODES, parseOutline } from "./mindmap.js";
-import { listDrawings, readDrawing, writeDrawing } from "./obsidian.js";
+import { getVaultRoot, listDrawings, readDrawing, writeDrawing } from "./obsidian.js";
+import { loadTheme } from "./slide-theme.js";
 
 /** Maximum allowed size for element/data input strings (5 MB). */
 const MAX_INPUT_BYTES = 5 * 1024 * 1024;
@@ -498,18 +499,19 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
   server.registerTool(
     "obsidian_write_slides",
     {
-      description: "Generate a slide deck for the Obsidian Excalidraw Slideshow script: one 1920x1080 frame per slide, with order, presenter notes and bullet-by-bullet appear animations stored in the frame metadata the script reads. deck is a JSON string: {title?, slides:[{title, subtitle?, bullets?:string[], code?:string, codeTitle?, codeLang?, flow?:string[], notes?, layout?, animate?}]}. The first slide is a cover; slides without content become section dividers; a leading number in the title ('3 Foo') becomes a chapter badge. Bullets are auto-rendered as cards ('Head：body' lines), numbered steps (①/1. prefixes), a table (lines with →, HTTP methods get coloured pills) or list rows; override with layout. Code is syntax highlighted (java/ts/vue/yaml/json/http/sh/xml, auto-detected). flow items become a serpentine process diagram.",
+      description: "Generate a slide deck for the Obsidian Excalidraw Slideshow script: one 1920x1080 frame per slide, with order, presenter notes and bullet-by-bullet appear animations stored in the frame metadata the script reads. deck is a JSON string: {title?, titleFont?:'sans'|'hand'|'local', bodyFont?, progress?, slides:[{title, subtitle?, bullets?:string[], code?:string, codeTitle?, codeLang?, flow?:string[], kpis?:[{num,label}], vs?:{left:{title,items},right:{title,items}}, kv?:[[key,value]], callouts?:[{kind:'tip'|'warn'|'task'|'ask',text}], stage?:'b'|'o'|'p1'|'p2'|'p3'|'s', type?:'stage'|'divider', badge?, act?, notes?, layout?, animate?}]}. stage lights the BOPPPS six-dot progress and colours stage dividers. The first slide is a cover; slides without content become section dividers; a leading number in the title ('3 Foo') becomes a chapter badge. Bullets are auto-rendered as cards ('Head：body' lines), numbered steps (①/1. prefixes), a table (lines with →, HTTP methods get coloured pills) or list rows; override with layout. Code is syntax highlighted (java/ts/vue/yaml/json/http/sh/xml, auto-detected). flow items become a serpentine process diagram.",
       inputSchema: {
         path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
         deck: z.string().describe("JSON deck specification"),
+        theme: z.string().optional().describe("'fresh' (default), a Marp theme name from <vault>/theme/<name>.css (campus, campus43, blackboard, ink, swiss ...) or an absolute .css path. Colours, slide size and cover/stage styling follow the theme."),
         overwrite: z.boolean().optional(),
       },
     },
-    async ({ path, deck, overwrite }): Promise<CallToolResult> => {
+    async ({ path, deck, theme, overwrite }): Promise<CallToolResult> => {
       try {
         const spec = JSON.parse(deck);
         if (!Array.isArray(spec.slides) || !spec.slides.length) throw new Error("deck.slides must be a non-empty array");
-        const els = buildSlides(spec);
+        const els = buildSlides(spec, loadTheme(theme, getVaultRoot()));
         await writeDrawing(path, els, overwrite ?? false);
         return text(`Saved ${spec.slides.length} slides (${els.length} elements) to ${path}. Run the Slideshow script in Obsidian to present.`);
       } catch (e) { return fail(e); }

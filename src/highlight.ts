@@ -20,6 +20,10 @@ export const THEME = {
   key: "#e06c75",
   punct: "#abb2bf",
 } as const;
+export const THEME_LIGHT: Record<keyof typeof THEME, string> = {
+  default: "#24302a", keyword: "#7c3aed", string: "#15803d", comment: "#6b7280", annotation: "#b45309", type: "#b45309",
+  func: "#1d4ed8", number: "#c2410c", tag: "#be123c", attr: "#b45309", key: "#be123c", punct: "#24302a",
+};
 export type Tok = keyof typeof THEME;
 
 const KW = {
@@ -139,7 +143,7 @@ function tokenizeLine(line: string, lang: Lang, state: { block: boolean }): Tok[
 export type Layer = { color: string; text: string };
 
 /** Split code into colour layers sharing one monospace grid. */
-export function highlightLayers(code: string, lang: Lang): Layer[] {
+export function highlightLayers(code: string, lang: Lang, light = false): Layer[] {
   const lines = code.replace(/\t/g, "  ").split("\n");
   const state = { block: false };
   const grid = lines.map((l) => ({ l, k: tokenizeLine(l, lang, state) }));
@@ -155,7 +159,7 @@ export function highlightLayers(code: string, lang: Lang): Layer[] {
   const layers: Layer[] = [];
   for (const [kind, rows] of used) {
     const text = rows.join("\n");
-    if (text.trim()) layers.push({ color: THEME[kind], text });
+    if (text.trim()) layers.push({ color: (light ? THEME_LIGHT : THEME)[kind], text });
   }
   return layers;
 }

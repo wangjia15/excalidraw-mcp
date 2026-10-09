@@ -219,3 +219,5 @@ Set `EXCALIDRAW_LIB=<path to a local excalidraw package>` at build time (e.g. `o
 Slide layouts (`src/slides.ts`) are content driven: cover, section divider, cards / numbered steps / table / list rows for bullets, serpentine process flows, and One Dark style code windows. Highlighting (`src/highlight.ts`) works by emitting one monospace text layer per colour, every non-matching character blanked with spaces, so the layers overlay on one grid.
 
 `obsidian_write_template` (`src/templates.ts`) draws 11 Chinese-tuned diagram kinds (layers, timeline, compare, table, tree, swimlane, quadrant, funnel, cycle, cards, flow); shapes use bound text and arrows are bound to shapes. User manual: `docs/使用手册.md`.
+
+Slide themes (`src/slide-theme.ts`): `obsidian_write_slides` takes `theme` = built-in `fresh`, or a Marp theme CSS (`<vault>/theme/<name>.css`); palette variables in `:root` and the `section` size are read from the CSS. Campus-like themes use the formal cover/stage style. BOPPPS slide fields: `stage`, `type`, `badge`, `act`, `callouts`, `kpis`, `vs`, `kv`.
