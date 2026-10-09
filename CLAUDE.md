@@ -14,6 +14,12 @@ src/dev.tsx        → Dev entry point: mock app + sample elements + control pan
 src/dev-mock.ts    → Mock MCP App with event simulation (sendToolInput, streamElements, etc.)
 index-dev.html     → Dev HTML entry (served by vite dev server)
 vite.config.dev.ts → Dev-only vite config (resolves from node_modules, no esm.sh externals)
+obsidian.ts        → .excalidraw.md read/write, id normalisation, vault path guard, embedded images
+mindmap.ts         → XMind-style mindmaps + Slideshow marker frames
+slides.ts          → slide layout engine (themes, images, BOPPPS elements)
+slide-theme.ts     → Marp CSS theme loader
+highlight.ts       → syntax highlighting layers for code slides
+templates.ts       → 11 Chinese-tuned diagram templates
 ```
 
 ## Tools

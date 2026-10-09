@@ -50,6 +50,25 @@ Example prompts:
 - "Draw a cute cat using excalidraw"
 - "Draw an architecture diagram showing a user connecting to an API server which talks to a database"
 
+## Obsidian Excalidraw plugin support
+
+This fork can also read and write drawings in an Obsidian vault (the `.excalidraw.md` format of
+[obsidian-excalidraw-plugin](https://github.com/zsviczian/obsidian-excalidraw-plugin)) and generate Chinese-optimised
+diagrams, mind maps and slide decks. Set `OBSIDIAN_VAULT` to the vault root:
+
+```bash
+claude mcp add -s user excalidraw -e OBSIDIAN_VAULT=/path/to/vault -- node /path/to/excalidraw-mcp/dist/index.js --stdio
+```
+
+| Tool | What it does |
+|---|---|
+| `obsidian_list_drawings` / `obsidian_read_drawing` / `obsidian_write_drawing` | list, read and write vault drawings (professional style by default) |
+| `obsidian_write_template` (+ `obsidian_template_help`) | 11 diagram templates: layers, timeline, compare, table, tree, swimlane, quadrant, funnel, cycle, cards, flow |
+| `obsidian_write_mindmap` | XMind-style mind maps compatible with the Mindmap Builder script (all Growth Strategies, image nodes, themes, Slideshow frames) |
+| `obsidian_write_slides` | slide decks for the Slideshow script: cover / stage dividers, cards, steps, tables, flows, KPI, VS, key-value, highlighted code, images, BOPPPS elements, Marp CSS themes (campus, blackboard, ink, swiss ...) |
+
+Full guide (Chinese): [docs/使用手册.md](docs/使用手册.md).
+
 ## What are MCP Apps and how can I build one?
 
 Text responses can only go so far. Sometimes users need to interact with data, not just read about it. [MCP Apps](https://github.com/modelcontextprotocol/ext-apps/) is an official Model Context Protocol extension that lets servers return interactive HTML interfaces (data visualizations, forms, dashboards) that render directly in the chat.
