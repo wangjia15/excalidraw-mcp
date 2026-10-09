@@ -8,6 +8,7 @@ import { deflateSync } from "node:zlib";
 import { z } from "zod/v4";
 import type { CheckpointStore } from "./checkpoint-store.js";
 import { buildSlides } from "./slides.js";
+import { buildTemplate, TEMPLATE_KINDS } from "./templates.js";
 import { buildMindmap, GROWTH_MODES, parseOutline } from "./mindmap.js";
 import { listDrawings, readDrawing, writeDrawing } from "./obsidian.js";
 
@@ -515,6 +516,36 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
     },
   );
 
+  server.registerTool(
+    "obsidian_write_template",
+    {
+      description: "Generate a Chinese-optimised diagram from a template into an Obsidian .excalidraw.md file. kinds: layers (分层架构), timeline (时间线), compare (左右对比), table (表格), tree (树状/组织结构), swimlane (泳道流程), quadrant (四象限), funnel (漏斗/金字塔), cycle (循环), cards (要点卡片), flow (流程图). spec is a JSON string whose shape depends on kind; call obsidian_template_help for the shapes.",
+      inputSchema: {
+        path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
+        kind: z.enum(TEMPLATE_KINDS),
+        spec: z.string().describe("JSON spec for the chosen kind"),
+        font: z.enum(["sans", "hand"]).optional().describe("sans (default, system CJK sans, professional) or hand (Excalifont; Xiaolai when the plugin's Load Chinese fonts is on)"),
+        overwrite: z.boolean().optional(),
+      },
+    },
+    async ({ path, kind, spec, font, overwrite }): Promise<CallToolResult> => {
+      try {
+        const els = buildTemplate(kind, JSON.parse(spec), font ?? "sans");
+        await writeDrawing(path, els, overwrite ?? false);
+        return text(`Saved ${kind} template (${els.length} elements) to ${path}`);
+      } catch (e) { return fail(e); }
+    },
+  );
+
+  server.registerTool(
+    "obsidian_template_help",
+    {
+      description: "Show the JSON spec shape of every obsidian_write_template kind, with a minimal example.",
+      annotations: { readOnlyHint: true },
+    },
+    async (): Promise<CallToolResult> => text(TEMPLATE_HELP),
+  );
+
   // ============================================================
   // Tool 2: create_view (Excalidraw SVG)
   // ============================================================
@@ -781,6 +812,20 @@ However, if the user wants to edit something on this diagram "${checkpointId}", 
     },
   );
 }
+
+const TEMPLATE_HELP = `obsidian_write_template specs (all accept optional title, subtitle):
+layers   {layers:[{name, items:[str]}]}                     分层架构图
+timeline {events:[{time, title, desc?}]}                    时间线，上下交错
+compare  {left:{title,items:[str]}, right:{title,items:[str]}}  左右对比 + VS
+table    {columns:[str], rows:[[str]]}                      表头 + 斑马纹表格
+tree     {root:{t, c?:[{t,c?}]}}                            树状 / 组织结构（自上而下）
+swimlane {lanes:[str], steps:[{lane:str|index, text, decision?}]}  泳道流程，按顺序连线
+quadrant {xAxis:[low,high], yAxis:[low,high], quadrants:[左上,右上,左下,右下], items:[{text,x:0-1,y:0-1}]}
+funnel   {levels:[{text,note?}], shape?:"funnel"|"pyramid"} 漏斗 / 金字塔
+cycle    {steps:[str] (3+), center?:str}                    环形循环
+cards    {cards:[{title, body?}], columns?}                 编号要点卡片
+flow     {steps:[str | {text, type?:"start"|"end"|"process"|"decision"}], columns?}  流程图（蛇形换行）
+Fonts: font "sans" (default) or "hand".`;
 
 /**
  * Creates a new MCP server instance with Excalidraw drawing tools.

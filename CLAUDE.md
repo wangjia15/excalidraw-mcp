@@ -217,3 +217,5 @@ Set `EXCALIDRAW_LIB=<path to a local excalidraw package>` at build time (e.g. `o
 `obsidian_write_slides` (`src/slides.ts`) generates a deck for the Slideshow script: one 1920x1080 frame per slide (frames follow their children in the array), `frame.customData.slideshow = {schemaVersion: 2, kind: "frame", order, notes?, animation?: {steps}}`. Bullets get `fade`/`advance` steps. Element ids are generated as valid 8-char plugin ids because animation targets reference them. Untested inside Obsidian.
 
 Slide layouts (`src/slides.ts`) are content driven: cover, section divider, cards / numbered steps / table / list rows for bullets, serpentine process flows, and One Dark style code windows. Highlighting (`src/highlight.ts`) works by emitting one monospace text layer per colour, every non-matching character blanked with spaces, so the layers overlay on one grid.
+
+`obsidian_write_template` (`src/templates.ts`) draws 11 Chinese-tuned diagram kinds (layers, timeline, compare, table, tree, swimlane, quadrant, funnel, cycle, cards, flow); shapes use bound text and arrows are bound to shapes. User manual: `docs/使用手册.md`.

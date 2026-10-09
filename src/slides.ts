@@ -28,7 +28,7 @@ export type DeckSpec = { title?: string; slides: SlideSpec[] };
 
 const W = 1920, H = 1080, GAP = 240;
 const NAVY = "#35495e", INK = "#2b2f36", MUTED = "#5f6368", GREEN = "#42b883", PAPER = "#f6faf8";
-const ACC = [
+export const ACC = [
   { c: "#2e8b57", bg: "#e8f5ec" }, { c: "#2f6fb5", bg: "#e7f0fb" }, { c: "#c97a12", bg: "#fdf0e0" },
   { c: "#6b4fb8", bg: "#f1eafa" }, { c: "#c0392b", bg: "#fbeaea" }, { c: "#1f8a8a", bg: "#e6f6f6" },
 ];
@@ -36,22 +36,30 @@ const METHOD: Record<string, string> = { GET: "#2e8b57", POST: "#2f6fb5", PUT: "
 const CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩";
 const NON_ASCII = /[^\u0000-\u00ff]/;
 
+const NO_START = "，。、；：！？）》」』”’…·,.;:!?)]}";
+const NO_END = "（《「『“‘([{";
 const isCjk = (ch: string) => ch.charCodeAt(0) > 255;
-const wOf = (s: string, fs: number, mono = false) =>
+export const wOf = (s: string, fs: number, mono = false) =>
   Math.ceil([...s].reduce((a, ch) => a + (isCjk(ch) ? fs : fs * (mono ? 0.6 : 0.56)), 0));
 /** rough "longest unbreakable run" measure in em, used to pick a font size that avoids mid-word breaks */
 const longestRun = (t: string) =>
   Math.max(1, ...t.split(/[\s：，。、（）()→/]+/).map((x) => (NON_ASCII.test(x) ? x.length * 0.95 : x.length * 0.6)));
 
 /** Word-aware wrap: Latin runs are never split unless a single run exceeds the width. */
-function wrap(text: string, fs: number, maxW: number): string {
+export function wrap(text: string, fs: number, maxW: number): string {
   const out: string[] = [];
   for (const para of text.split("\n")) {
     const tokens = para.match(/[A-Za-z0-9_@./\-:<>{}()$#&*+=\\'"`,;!?|~%^[\]]+|\s+|[^\sA-Za-z0-9_@./\-:<>{}()$#&*+=\\'"`,;!?|~%^[\]]/g) ?? [""];
     let line = "";
-    const push = () => { out.push(line.replace(/\s+$/, "")); line = ""; };
+    const push = () => {
+      let l = line.replace(/\s+$/, ""), carry = "";
+      const last = l.slice(-1);
+      if (l.length > 1 && NO_END.includes(last)) { carry = last; l = l.slice(0, -1); } // 禁则：开括号不落行尾
+      out.push(l); line = carry;
+    };
     for (let tk of tokens) {
       if (!line && /^\s+$/.test(tk)) continue;
+      if (line && NO_START.includes(tk[0]) && wOf(line + tk, fs) > maxW && wOf(line + tk, fs) <= maxW + fs * 1.6) { line += tk; continue; } // 禁则：标点不出现在行首
       while (wOf(line + tk, fs) > maxW) {
         if (line) { push(); if (/^\s+$/.test(tk)) { tk = ""; break; } continue; }
         // single token wider than the box: hard split
@@ -65,7 +73,7 @@ function wrap(text: string, fs: number, maxW: number): string {
   }
   return out.join("\n");
 }
-const linesOf = (t: string) => t.split("\n").length;
+export const linesOf = (t: string) => t.split("\n").length;
 
 type El = any;
 type Item = { els: El[]; ids: string[] };
