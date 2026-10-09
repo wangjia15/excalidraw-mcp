@@ -5,6 +5,7 @@
  */
 import fs from "node:fs/promises";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import LZString from "lz-string";
 
 const DRAWING_COMPRESSED_REG = /\n##? Drawing\n[^`]*```compressed-json\n([\s\S]*?)```/m;
@@ -92,6 +93,34 @@ export function applyProfessionalStyle(elements: any[]): any[] {
   });
 }
 
+const PLUGIN_ID = /^[A-Za-z0-9_-]{8}$/;
+
+/**
+ * The plugin only recognises "## Text Elements" entries whose id is exactly 8 chars of
+ * [A-Za-z0-9_-]; any other id makes the text come back empty on load. Remap ids (and every
+ * reference to them) to stable 8-char ids.
+ */
+export function normalizeIds(elements: any[]): any[] {
+  const map = new Map<string, string>();
+  const used = new Set<string>(elements.map((e) => e.id).filter((i: string) => PLUGIN_ID.test(i)));
+  for (const e of elements) {
+    if (!e?.id || PLUGIN_ID.test(e.id) || map.has(e.id)) continue;
+    let n = 0, nid: string;
+    do { nid = createHash("sha1").update(e.id + ":" + n++).digest("base64url").slice(0, 8); } while (used.has(nid) || !PLUGIN_ID.test(nid));
+    used.add(nid);
+    map.set(e.id, nid);
+  }
+  if (!map.size) return elements;
+  const m = (i: any) => (typeof i === "string" && map.has(i) ? map.get(i)! : i);
+  return elements.map((e) => {
+    const o = { ...e, id: m(e.id) };
+    if (o.containerId) o.containerId = m(o.containerId);
+    if (o.boundElements) o.boundElements = o.boundElements.map((b: any) => ({ ...b, id: m(b.id) }));
+    for (const k of ["startBinding", "endBinding"]) if (o[k]) o[k] = { ...o[k], elementId: m(o[k].elementId) };
+    return o;
+  });
+}
+
 export async function listDrawings(dir = ""): Promise<string[]> {
   const root = getVaultRoot();
   const out: string[] = [];
@@ -113,6 +142,7 @@ export async function readDrawing(rel: string) {
 }
 
 export async function writeDrawing(rel: string, elements: any[], overwrite: boolean, style: "professional" | "none" = "professional") {
+  elements = normalizeIds(elements);
   if (style === "professional") elements = applyProfessionalStyle(elements);
   if (!rel.endsWith(".excalidraw.md")) throw new Error("Path must end with .excalidraw.md");
   const full = resolveVaultPath(rel);
