@@ -203,3 +203,7 @@ grep "Excalidraw" ~/Library/Logs/Claude/claude.ai-web.log | tail -20
 - The `.SVGLayer` div is not used for rendering but takes layout space — safe to `display: none`
 - morphdom is essential — without it, replacing innerHTML re-triggers all animations on every update
 - `ReactDOM.render()` per update remounts the tree and kills animations — use `createRoot()` once + `useState` if adding React components
+
+## Obsidian Excalidraw plugin support
+
+`src/obsidian.ts` + tools `obsidian_list_drawings`, `obsidian_read_drawing`, `obsidian_write_drawing` read/write `.excalidraw.md` files (compressed-json format of obsidian-excalidraw-plugin) in the vault given by the `OBSIDIAN_VAULT` env var. Paths are vault-relative and confined to the vault. Read output is a plain elements array usable as `create_view` input.

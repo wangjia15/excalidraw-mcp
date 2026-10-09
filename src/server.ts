@@ -7,6 +7,7 @@ import path from "node:path";
 import { deflateSync } from "node:zlib";
 import { z } from "zod/v4";
 import type { CheckpointStore } from "./checkpoint-store.js";
+import { listDrawings, readDrawing, writeDrawing } from "./obsidian.js";
 
 /** Maximum allowed size for element/data input strings (5 MB). */
 const MAX_INPUT_BYTES = 5 * 1024 * 1024;
@@ -412,6 +413,60 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
     },
     async (): Promise<CallToolResult> => {
       return { content: [{ type: "text", text: RECALL_CHEAT_SHEET }] };
+    },
+  );
+
+
+  // ============================================================
+  // Obsidian Excalidraw plugin tools (require OBSIDIAN_VAULT env)
+  // ============================================================
+  const text = (t: string): CallToolResult => ({ content: [{ type: "text", text: t }] });
+  const fail = (e: unknown): CallToolResult => ({ isError: true, content: [{ type: "text", text: String((e as Error).message ?? e) }] });
+
+  server.registerTool(
+    "obsidian_list_drawings",
+    {
+      description: "List .excalidraw.md drawings in the Obsidian vault (set via OBSIDIAN_VAULT).",
+      inputSchema: { dir: z.string().optional().describe("Vault-relative folder, default vault root") },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ dir }): Promise<CallToolResult> => {
+      try { return text(JSON.stringify(await listDrawings(dir ?? ""), null, 2)); } catch (e) { return fail(e); }
+    },
+  );
+
+  server.registerTool(
+    "obsidian_read_drawing",
+    {
+      description: "Read an Obsidian Excalidraw plugin drawing and return its elements as JSON (usable as create_view input).",
+      inputSchema: { path: z.string().describe("Vault-relative path ending in .excalidraw.md") },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ path }): Promise<CallToolResult> => {
+      try {
+        const scene = await readDrawing(path);
+        return text(JSON.stringify((scene.elements ?? []).filter((e: any) => !e.isDeleted)));
+      } catch (e) { return fail(e); }
+    },
+  );
+
+  server.registerTool(
+    "obsidian_write_drawing",
+    {
+      description: "Save elements (JSON array string, standard Excalidraw format) to an Obsidian .excalidraw.md file. Preserves existing frontmatter/appState/files when overwriting.",
+      inputSchema: {
+        path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
+        elements: z.string().describe("JSON array of Excalidraw elements"),
+        overwrite: z.boolean().optional().describe("Allow replacing an existing drawing"),
+      },
+    },
+    async ({ path, elements, overwrite }): Promise<CallToolResult> => {
+      try {
+        const els = JSON.parse(elements);
+        if (!Array.isArray(els)) throw new Error("elements must be a JSON array");
+        await writeDrawing(path, els, overwrite ?? false);
+        return text(`Saved ${els.length} elements to ${path}`);
+      } catch (e) { return fail(e); }
     },
   );
 
