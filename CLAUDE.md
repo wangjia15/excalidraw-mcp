@@ -221,3 +221,5 @@ Slide layouts (`src/slides.ts`) are content driven: cover, section divider, card
 `obsidian_write_template` (`src/templates.ts`) draws 11 Chinese-tuned diagram kinds (layers, timeline, compare, table, tree, swimlane, quadrant, funnel, cycle, cards, flow); shapes use bound text and arrows are bound to shapes. User manual: `docs/使用手册.md`.
 
 Slide themes (`src/slide-theme.ts`): `obsidian_write_slides` takes `theme` = built-in `fresh`, or a Marp theme CSS (`<vault>/theme/<name>.css`); palette variables in `:root` and the `section` size are read from the CSS. Campus-like themes use the formal cover/stage style. BOPPPS slide fields: `stage`, `type`, `badge`, `act`, `callouts`, `kpis`, `vs`, `kv`.
+
+Mindmaps support image nodes (`![alt](vault/path.png)` in the outline): `type: "image"` elements with `fileId = sha1(path)` and `customData.vaultPath`; `buildExcalidrawMd` lists them under `## Embedded Files` as `<fileId>: [[path]]`. Node text wraps at `maxWidth`; `theme` colours the map (root = accent, level-1 text = branch colour, deeper text = ink).

@@ -56,6 +56,12 @@ export function buildExcalidrawMd(scene: any, frontmatter?: string): string {
     .filter((e: any) => e.type === "text" && !e.isDeleted)
     .map((e: any) => `${e.originalText ?? e.text} ^${e.id}\n`)
     .join("\n");
+  // images stored as vault files: "<fileId>: [[path]]" under "## Embedded Files"
+  const embedded = new Map<string, string>();
+  for (const e of scene.elements ?? []) {
+    if (e.type === "image" && !e.isDeleted && e.fileId && e.customData?.vaultPath) embedded.set(e.fileId, e.customData.vaultPath);
+  }
+  const files = embedded.size ? `## Embedded Files\n${[...embedded].map(([id, p]) => `${id}: [[${p}]]\n`).join("\n")}\n` : "";
   return `${fm}
 ==⚠  Switch to EXCALIDRAW VIEW in the MORE OPTIONS menu of this document. ⚠==
 
@@ -64,7 +70,7 @@ export function buildExcalidrawMd(scene: any, frontmatter?: string): string {
 
 ## Text Elements
 ${texts}
-%%
+${files}%%
 ## Drawing
 \`\`\`compressed-json
 ${compressScene(JSON.stringify(scene))}
@@ -142,7 +148,27 @@ export async function readDrawing(rel: string) {
   return parseExcalidrawMd(md).scene;
 }
 
-export async function writeDrawing(rel: string, elements: any[], overwrite: boolean, style: "professional" | "none" = "professional") {
+/** pixel size of a PNG / JPEG / GIF / WebP file, or null when unknown (e.g. SVG) */
+export async function imageSize(rel: string): Promise<{ w: number; h: number } | null> {
+  const b = await fs.readFile(resolveVaultPath(rel));
+  if (b.length > 24 && b.readUInt32BE(0) === 0x89504e47) return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) };
+  if (b.length > 10 && b[0] === 0xff && b[1] === 0xd8) {
+    let i = 2;
+    while (i + 9 < b.length) {
+      if (b[i] !== 0xff) { i++; continue; }
+      const m = b[i + 1], len = b.readUInt16BE(i + 2);
+      if (m >= 0xc0 && m <= 0xcf && m !== 0xc4 && m !== 0xc8 && m !== 0xcc) return { h: b.readUInt16BE(i + 5), w: b.readUInt16BE(i + 7) };
+      i += 2 + len;
+    }
+  }
+  if (b.length > 10 && b.toString("ascii", 0, 3) === "GIF") return { w: b.readUInt16LE(6), h: b.readUInt16LE(8) };
+  if (b.length > 30 && b.toString("ascii", 0, 4) === "RIFF" && b.toString("ascii", 8, 12) === "WEBP") {
+    if (b.toString("ascii", 12, 16) === "VP8X") return { w: 1 + b.readUIntLE(24, 3), h: 1 + b.readUIntLE(27, 3) };
+  }
+  return null;
+}
+
+export async function writeDrawing(rel: string, elements: any[], overwrite: boolean, style: "professional" | "none" = "professional", extra: { appState?: Record<string, any> } = {}) {
   elements = normalizeIds(elements);
   if (style === "professional") elements = applyProfessionalStyle(elements);
   if (!rel.endsWith(".excalidraw.md")) throw new Error("Path must end with .excalidraw.md");
@@ -160,6 +186,7 @@ export async function writeDrawing(rel: string, elements: any[], overwrite: bool
   } catch (e: any) {
     if (e.code !== "ENOENT" && !String(e.message).includes("No ## Drawing")) throw e;
   }
+  if (extra.appState) scene.appState = { ...scene.appState, ...extra.appState };
   await fs.mkdir(path.dirname(full), { recursive: true });
   await fs.writeFile(full, buildExcalidrawMd(scene, frontmatter), "utf8");
 }

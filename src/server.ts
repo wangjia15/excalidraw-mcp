@@ -9,8 +9,8 @@ import { z } from "zod/v4";
 import type { CheckpointStore } from "./checkpoint-store.js";
 import { buildSlides } from "./slides.js";
 import { buildTemplate, TEMPLATE_KINDS } from "./templates.js";
-import { buildMindmap, GROWTH_MODES, parseOutline } from "./mindmap.js";
-import { getVaultRoot, listDrawings, readDrawing, writeDrawing } from "./obsidian.js";
+import { buildMindmap, GROWTH_MODES, imageNodes, parseOutline } from "./mindmap.js";
+import { getVaultRoot, imageSize, listDrawings, readDrawing, writeDrawing } from "./obsidian.js";
 import { loadTheme } from "./slide-theme.js";
 
 /** Maximum allowed size for element/data input strings (5 MB). */
@@ -478,20 +478,30 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
   server.registerTool(
     "obsidian_write_mindmap",
     {
-      description: "Generate a Mind Map Builder compatible mindmap (.excalidraw.md) from an indented markdown outline (first line = root). growthMode matches the Growth Strategy of the Mind Map Builder script and is stored on the root node, so the script can relayout or switch strategy later.",
+      description: "Generate a Mind Map Builder compatible mindmap (.excalidraw.md) from an indented markdown outline (first line = root). growthMode matches the Growth Strategy of the Mind Map Builder script and is stored on the root node, so the script can relayout or switch strategy later. Images: a line `![说明](vault/relative/path.png)` becomes an embedded image node (PNG/JPEG/GIF/WebP, size read from the file); attach interpretation points as its siblings or under a caption node. theme (fresh, or a Marp theme name such as campus) sets colours and the canvas background.",
       inputSchema: {
         path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
         outline: z.string().describe("Indented markdown outline, first line is the root, children indented with 2 spaces or a tab"),
         growthMode: z.enum(GROWTH_MODES).optional().describe("Growth Strategy, default Right-Left"),
+        theme: z.string().optional().describe("'fresh' (default) or a Marp theme name from <vault>/theme/<name>.css (campus, blackboard, ink, swiss ...)"),
+        maxWidth: z.number().optional().describe("max text width of a node before wrapping (default 460)"),
+        imageWidth: z.number().optional().describe("display width of image nodes (default 640)"),
         overwrite: z.boolean().optional(),
       },
     },
-    async ({ path, outline, growthMode, overwrite }): Promise<CallToolResult> => {
+    async ({ path, outline, growthMode, theme, maxWidth, imageWidth, overwrite }): Promise<CallToolResult> => {
       try {
         const mode = growthMode ?? "Right-Left";
-        const els = buildMindmap(parseOutline(outline), mode);
-        await writeDrawing(path, els, overwrite ?? false);
-        return text(`Saved mindmap (${els.length} elements, ${mode}) to ${path}`);
+        const th = loadTheme(theme, getVaultRoot());
+        const tree = parseOutline(outline);
+        for (const n of imageNodes(tree)) {
+          const sz = await imageSize(n.img!.path);
+          if (!sz) throw new Error(`cannot read image size of ${n.img!.path} (use PNG, JPEG, GIF or WebP inside the vault)`);
+          n.img!.w = sz.w; n.img!.h = sz.h;
+        }
+        const els = buildMindmap(tree, mode, { theme: th, maxWidth, imageWidth });
+        await writeDrawing(path, els, overwrite ?? false, "professional", { appState: { viewBackgroundColor: th.bg, theme: th.dark ? "dark" : "light" } });
+        return text(`Saved mindmap (${els.length} elements, ${mode}, theme ${th.name}) to ${path}`);
       } catch (e) { return fail(e); }
     },
   );
