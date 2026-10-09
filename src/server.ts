@@ -458,13 +458,14 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
         path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
         elements: z.string().describe("JSON array of Excalidraw elements"),
         overwrite: z.boolean().optional().describe("Allow replacing an existing drawing"),
+        style: z.enum(["professional", "none"]).optional().describe("Default template applied to unset properties: professional (default) = roughness 0, Helvetica, 1.5px strokes; none = leave elements as given"),
       },
     },
-    async ({ path, elements, overwrite }): Promise<CallToolResult> => {
+    async ({ path, elements, overwrite, style }): Promise<CallToolResult> => {
       try {
         const els = JSON.parse(elements);
         if (!Array.isArray(els)) throw new Error("elements must be a JSON array");
-        await writeDrawing(path, els, overwrite ?? false);
+        await writeDrawing(path, els, overwrite ?? false, style ?? "professional");
         return text(`Saved ${els.length} elements to ${path}`);
       } catch (e) { return fail(e); }
     },

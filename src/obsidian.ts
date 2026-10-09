@@ -71,6 +71,27 @@ ${compressScene(JSON.stringify(scene))}
 %%`;
 }
 
+/**
+ * Default "professional" template: clean (non-sketchy) lines, Helvetica text,
+ * 1.5px strokes. Only fills in properties the caller did not set explicitly.
+ */
+export const PROFESSIONAL_STYLE = { roughness: 0, strokeWidth: 1.5 };
+export const PROFESSIONAL_FONT_FAMILY = 2; // Helvetica
+export const PROFESSIONAL_APP_STATE = {
+  currentItemRoughness: 0,
+  currentItemStrokeWidth: 1.5,
+  currentItemFontFamily: PROFESSIONAL_FONT_FAMILY,
+  currentItemRoundness: "round",
+};
+
+export function applyProfessionalStyle(elements: any[]): any[] {
+  return elements.map((e) => {
+    const out = { ...PROFESSIONAL_STYLE, ...e };
+    if (e.type === "text" && e.fontFamily === undefined) out.fontFamily = PROFESSIONAL_FONT_FAMILY;
+    return out;
+  });
+}
+
 export async function listDrawings(dir = ""): Promise<string[]> {
   const root = getVaultRoot();
   const out: string[] = [];
@@ -91,13 +112,14 @@ export async function readDrawing(rel: string) {
   return parseExcalidrawMd(md).scene;
 }
 
-export async function writeDrawing(rel: string, elements: any[], overwrite: boolean) {
+export async function writeDrawing(rel: string, elements: any[], overwrite: boolean, style: "professional" | "none" = "professional") {
+  if (style === "professional") elements = applyProfessionalStyle(elements);
   if (!rel.endsWith(".excalidraw.md")) throw new Error("Path must end with .excalidraw.md");
   const full = resolveVaultPath(rel);
   let frontmatter: string | undefined;
   let scene: any = {
     type: "excalidraw", version: 2, source: "excalidraw-mcp",
-    elements, appState: { theme: "light", viewBackgroundColor: "#ffffff" }, files: {},
+    elements, appState: { theme: "light", viewBackgroundColor: "#ffffff", ...(style === "professional" ? PROFESSIONAL_APP_STATE : {}) }, files: {},
   };
   try {
     const existing = parseExcalidrawMd(await fs.readFile(full, "utf8"));
