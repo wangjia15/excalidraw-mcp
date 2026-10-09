@@ -509,7 +509,7 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
   server.registerTool(
     "obsidian_write_slides",
     {
-      description: "Generate a slide deck for the Obsidian Excalidraw Slideshow script: one 1920x1080 frame per slide, with order, presenter notes and bullet-by-bullet appear animations stored in the frame metadata the script reads. deck is a JSON string: {title?, titleFont?:'sans'|'hand'|'local', bodyFont?, progress?, slides:[{title, subtitle?, bullets?:string[], code?:string, codeTitle?, codeLang?, flow?:string[], kpis?:[{num,label}], vs?:{left:{title,items},right:{title,items}}, kv?:[[key,value]], callouts?:[{kind:'tip'|'warn'|'task'|'ask',text}], stage?:'b'|'o'|'p1'|'p2'|'p3'|'s', type?:'stage'|'divider', badge?, act?, notes?, layout?, animate?}]}. stage lights the BOPPPS six-dot progress and colours stage dividers. The first slide is a cover; slides without content become section dividers; a leading number in the title ('3 Foo') becomes a chapter badge. Bullets are auto-rendered as cards ('Head：body' lines), numbered steps (①/1. prefixes), a table (lines with →, HTTP methods get coloured pills) or list rows; override with layout. Code is syntax highlighted (java/ts/vue/yaml/json/http/sh/xml, auto-detected). flow items become a serpentine process diagram.",
+      description: "Generate a slide deck for the Obsidian Excalidraw Slideshow script: one 1920x1080 frame per slide, with order, presenter notes and bullet-by-bullet appear animations stored in the frame metadata the script reads. deck is a JSON string: {title?, titleFont?:'sans'|'hand'|'local', bodyFont?, progress?, slides:[{title, subtitle?, bullets?:string[], code?:string, codeTitle?, codeLang?, flow?:string[], kpis?:[{num,label}], vs?:{left:{title,items},right:{title,items}}, kv?:[[key,value]], image?:{path,caption?} (vault picture, shown with caption beside or above the bullets), callouts?:[{kind:'tip'|'warn'|'task'|'ask',text}], stage?:'b'|'o'|'p1'|'p2'|'p3'|'s', type?:'stage'|'divider', badge?, act?, notes?, layout?, animate?}]}. stage lights the BOPPPS six-dot progress and colours stage dividers. The first slide is a cover; slides without content become section dividers; a leading number in the title ('3 Foo') becomes a chapter badge. Bullets are auto-rendered as cards ('Head：body' lines), numbered steps (①/1. prefixes), a table (lines with →, HTTP methods get coloured pills) or list rows; override with layout. Code is syntax highlighted (java/ts/vue/yaml/json/http/sh/xml, auto-detected). flow items become a serpentine process diagram.",
       inputSchema: {
         path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
         deck: z.string().describe("JSON deck specification"),
@@ -521,6 +521,13 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
       try {
         const spec = JSON.parse(deck);
         if (!Array.isArray(spec.slides) || !spec.slides.length) throw new Error("deck.slides must be a non-empty array");
+        for (const sl of spec.slides) {
+          if (sl.image && (!sl.image.w || !sl.image.h)) {
+            const sz = await imageSize(sl.image.path);
+            if (!sz) throw new Error(`cannot read image size of ${sl.image.path} (use PNG, JPEG, GIF or WebP inside the vault)`);
+            sl.image.w = sz.w; sl.image.h = sz.h;
+          }
+        }
         const els = buildSlides(spec, loadTheme(theme, getVaultRoot()));
         await writeDrawing(path, els, overwrite ?? false);
         return text(`Saved ${spec.slides.length} slides (${els.length} elements) to ${path}. Run the Slideshow script in Obsidian to present.`);

@@ -10,6 +10,7 @@
  * plus BOPPPS extras (six-dot stage progress, callouts, badges). Colours, fonts and slide size come
  * from a theme (built-in "fresh", or a Marp theme CSS such as the vault's theme/campus.css).
  */
+import { createHash } from "node:crypto";
 import { detectLang, highlightLayers, type Lang } from "./highlight.js";
 import { FRESH, mix, onColor, STAGES, type Theme } from "./slide-theme.js";
 
@@ -40,6 +41,8 @@ export type SlideSpec = {
   kpis?: { num: string; label: string }[];
   vs?: { left: { title: string; items: string[] }; right: { title: string; items: string[] } };
   kv?: [string, string][];
+  /** picture from the vault (PNG/JPEG/GIF/WebP); w/h are its pixel size (the MCP tool fills them in) */
+  image?: { path: string; w?: number; h?: number; caption?: string };
 };
 export type FontChoice = "sans" | "hand" | "local";
 export type DeckSpec = { title?: string; slides: SlideSpec[]; titleFont?: FontChoice; bodyFont?: FontChoice; progress?: boolean };
@@ -422,7 +425,7 @@ export function buildSlides(spec: DeckSpec, theme: Theme = FRESH): any[] {
         if (animateItems) b.items.forEach((it) => steps.push({ id: nid(), effect: "fade", trigger: "advance", durationMs: 350, targets: it.ids.map((id) => ({ type: "element", id })) }));
       };
 
-      const hasContent = !!(s.bullets?.length || s.code || s.flow?.length || s.kpis?.length || s.vs || s.kv?.length || s.callouts?.length);
+      const hasContent = !!(s.bullets?.length || s.code || s.flow?.length || s.kpis?.length || s.vs || s.kv?.length || s.callouts?.length || s.image);
       const divider = !cover && (s.type === "stage" || s.type === "divider" || !hasContent);
       const deckTitle = spec.title;
 
@@ -524,7 +527,7 @@ export function buildSlides(spec: DeckSpec, theme: Theme = FRESH): any[] {
         let y = top;
         const bul = splitMulti(s.bullets ?? []);
         const mode = s.layout ?? (bul.length ? detectMode(bul) : "list");
-        const bare = !bul.length && !s.code && !s.kpis?.length && !s.vs && !s.kv?.length;
+        const bare = !bul.length && !s.code && !s.kpis?.length && !s.vs && !s.kv?.length && !s.image;
 
         if (s.flow?.length) {
           const alone = bare;
@@ -558,7 +561,32 @@ export function buildSlides(spec: DeckSpec, theme: Theme = FRESH): any[] {
           y += kb.h + 36;
         }
 
-        if (s.code && bul.length) {
+        if (s.image) {
+          const im = s.image, ratio = (im.w ?? 1600) / (im.h ?? 900), avail = bottom - y, cap = im.caption ? 46 : 0;
+          const place = (x: number, y0: number, w: number, h: number) => {
+            const fileId = createHash("sha1").update(im.path).digest("hex");
+            body.push(rect(x - 12, y0 - 12, w + 24, h + 24 + cap, cardStyle));
+            body.push({ id: nid(), type: "image", x, y: y0, width: w, height: h, fileId, status: "saved", scale: [1, 1], strokeColor: "transparent", strokeWidth: 0, roundness: null, customData: { vaultPath: im.path } });
+            if (im.caption) body.push(txt(x, y0 + h + 14, wrap(im.caption, 24, w), 24, MUTED, { textAlign: "center", boxW: w }));
+          };
+          if (ratio > 2.2 || !bul.length) {
+            let w = CW - 24, h = w / ratio;
+            const maxH = bul.length ? Math.min(avail * 0.52, 560) : avail - cap - 24;
+            if (h > maxH) { h = maxH; w = h * ratio; }
+            place(110 + (CW - w) / 2, y + 12, w, h);
+            y += h + cap + 52;
+            if (bul.length) {
+              const bb = fit((sc) => bulletsBlock(bul, mode, CW, sc), bottom - y, 1.0);
+              addBlock(bb, 110, y, animate);
+            }
+          } else {
+            const gap = 56; let w = Math.min(CW * 0.58, (avail - cap - 24) * ratio), h = w / ratio;
+            const bw = CW - w - gap - 24;
+            place(110 + 12, y + 12 + centre(h + cap, avail - 24), w, h);
+            const bb = fit((sc) => bulletsBlock(bul, mode === "table" || (mode === "cards" && bw < 760) ? "list" : mode, bw, sc), avail, 1.0);
+            addBlock(bb, 110 + w + gap + 24, y + centre(bb.h, avail), animate);
+          }
+        } else if (s.code && bul.length) {
           const gap = 36, lw = 640, cw = CW - lw - gap, avail = bottom - y;
           const cb = codeBlock(s.code, s.codeTitle, s.codeLang as string, cw, avail);
           const stacked = cb.h > avail + 1 || (!!s.flow?.length && avail < 380) || mode === "table";
