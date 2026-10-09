@@ -7,6 +7,7 @@ import path from "node:path";
 import { deflateSync } from "node:zlib";
 import { z } from "zod/v4";
 import type { CheckpointStore } from "./checkpoint-store.js";
+import { buildMindmap, GROWTH_MODES, parseOutline } from "./mindmap.js";
 import { listDrawings, readDrawing, writeDrawing } from "./obsidian.js";
 
 /** Maximum allowed size for element/data input strings (5 MB). */
@@ -467,6 +468,27 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
         if (!Array.isArray(els)) throw new Error("elements must be a JSON array");
         await writeDrawing(path, els, overwrite ?? false, style ?? "professional");
         return text(`Saved ${els.length} elements to ${path}`);
+      } catch (e) { return fail(e); }
+    },
+  );
+
+  server.registerTool(
+    "obsidian_write_mindmap",
+    {
+      description: "Generate a Mind Map Builder compatible mindmap (.excalidraw.md) from an indented markdown outline (first line = root). growthMode matches the Growth Strategy of the Mind Map Builder script and is stored on the root node, so the script can relayout or switch strategy later.",
+      inputSchema: {
+        path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
+        outline: z.string().describe("Indented markdown outline, first line is the root, children indented with 2 spaces or a tab"),
+        growthMode: z.enum(GROWTH_MODES).optional().describe("Growth Strategy, default Right-Left"),
+        overwrite: z.boolean().optional(),
+      },
+    },
+    async ({ path, outline, growthMode, overwrite }): Promise<CallToolResult> => {
+      try {
+        const mode = growthMode ?? "Right-Left";
+        const els = buildMindmap(parseOutline(outline), mode);
+        await writeDrawing(path, els, overwrite ?? false);
+        return text(`Saved mindmap (${els.length} elements, ${mode}) to ${path}`);
       } catch (e) { return fail(e); }
     },
   );
