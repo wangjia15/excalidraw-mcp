@@ -5,16 +5,30 @@
  */
 import fs from "node:fs/promises";
 import path from "node:path";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 import LZString from "lz-string";
 
 const DRAWING_COMPRESSED_REG = /\n##? Drawing\n[^`]*```compressed-json\n([\s\S]*?)```/m;
 const DRAWING_JSON_REG = /\n##? Drawing\n[^`]*```json\n([\s\S]*?)```/m;
 
+const vaultScope = new AsyncLocalStorage<string>();
+
+/** The vault of the current tool call: its `vault` argument, else OBSIDIAN_VAULT. */
 export function getVaultRoot(): string {
-  const v = process.env.OBSIDIAN_VAULT;
-  if (!v) throw new Error("OBSIDIAN_VAULT environment variable is not set (path to the Obsidian vault)");
+  const v = vaultScope.getStore() ?? process.env.OBSIDIAN_VAULT;
+  if (!v) throw new Error("No vault: pass `vault` (absolute path of an Obsidian vault folder) or set OBSIDIAN_VAULT");
   return path.resolve(v);
+}
+
+/** Run fn with `vault` as the vault root. A caller-chosen folder must be an Obsidian vault (contain .obsidian/). */
+export async function withVault<T>(vault: string | undefined, fn: () => Promise<T>): Promise<T> {
+  if (!vault) return fn();
+  if (!path.isAbsolute(vault)) throw new Error(`vault must be an absolute path, got "${vault}"`);
+  const root = path.resolve(vault);
+  const st = await fs.stat(path.join(root, ".obsidian")).catch(() => null);
+  if (!st?.isDirectory()) throw new Error(`${root} is not an Obsidian vault (no .obsidian folder)`);
+  return vaultScope.run(root, fn);
 }
 
 /** Resolve a vault-relative path, rejecting anything that escapes the vault. */

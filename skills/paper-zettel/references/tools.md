@@ -3,8 +3,8 @@
 ## 截取论文图表
 
 ```sh
-S=~/.claude/skills/paper-zettel/scripts/pdf_figures.py
-A=I:/obsidiannote/paper-zettel/Papers/VIT/assets
+S=<本技能目录>/scripts/pdf_figures.py
+A=<VAULT>/Papers/VIT/assets
 python -I $S auto  Inbox/vit.pdf $A                 # fig<N>.png、tab<N>.png、figures.json
 python -I $S pages Inbox/vit.pdf $A/../_preview --pages 8 --zoom 1   # 渲染整页，打印页面尺寸（pt）
 python -I $S crop  Inbox/vit.pdf $A 8 380 335 510 592 fig6         # 按 PDF 坐标（pt）补截
@@ -15,7 +15,7 @@ python -I $S crop  Inbox/vit.pdf $A 8 380 335 510 592 fig6         # 按 PDF 坐
 - **每张要用的截图都用 Read 检查**：是否混进了别的图、正文，或缺了一部分。
 - 同一编号出现多次时（正文中提到 "Figure 2"），脚本保留面积最大的那次。
 
-## MCP（服务器 `excalidraw-zettel`，vault = paper-zettel）
+## MCP 工具（每次调用都传 `vault: "<VAULT>"`）
 
 | 工具 | 用途 |
 |---|---|
@@ -32,8 +32,8 @@ python -I $S crop  Inbox/vit.pdf $A 8 380 335 510 592 fig6         # 按 PDF 坐
 ## CLI（Obsidian 原生命令）
 
 ```sh
-OB="$LOCALAPPDATA/Programs/Obsidian/Obsidian.com"
-"$OB" vault=paper-zettel obsidian-excalidraw-plugin:status
+OB=obsidian   # Windows 不在 PATH 时：OB="$LOCALAPPDATA/Programs/Obsidian/Obsidian.com"
+"$OB" vault=<VNAME> obsidian-excalidraw-plugin:status
 ```
 
 - `vault=` 必须放在命令前面。输出是 JSON，要检查 `ok`、`status`、`mutation`、`persistence`，退出码为 0 不代表成功。
@@ -55,10 +55,10 @@ OB="$LOCALAPPDATA/Programs/Obsidian/Obsidian.com"
 ```
 
 ```sh
-"$OB" vault=paper-zettel obsidian-excalidraw-plugin:export input=_cli/vit-card-m01-1.json
+"$OB" vault=<VNAME> obsidian-excalidraw-plugin:export input=_cli/vit-card-m01-1.json
 ```
 
-用 Read 打开 `I:/obsidiannote/paper-zettel/Papers/VIT/_preview/m01-1.png`，检查：
+用 Read 打开 `<VAULT>/Papers/VIT/_preview/m01-1.png`，检查：
 
 - 标题、要点是否溢出或重叠；图形是否太小（太小就减少同卡图形数量，或改成上下排列的单一图形）
 - 原图标注：红色编号圈和虚线框是否落在要解读的位置上
@@ -81,7 +81,7 @@ OB="$LOCALAPPDATA/Programs/Obsidian/Obsidian.com"
  ]}
 ```
 
-3. 执行：`"$OB" vault=paper-zettel obsidian-excalidraw-plugin:apply input=_cli/vit-fix-1.json`
+3. 执行：`"$OB" vault=<VNAME> obsidian-excalidraw-plugin:apply input=_cli/vit-fix-1.json`
 4. `STALE_REVISION`：重新读版本号再判断是否还需要；`BUSY` 或输出丢失：用 `result requestId=vit-fix-1` 查回执，**不要自动重试**。
 5. 重新导出 PNG 复查。
 

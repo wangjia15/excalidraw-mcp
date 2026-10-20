@@ -1,5 +1,8 @@
 node_modules/
-dist/
+# dist is built locally; the Claude Code plugin runs the committed stdio bundle and the app HTML
+dist/*
+!dist/index.js
+!dist/mcp-app.html
 .DS_Store
 *.mcpb
 .vercel

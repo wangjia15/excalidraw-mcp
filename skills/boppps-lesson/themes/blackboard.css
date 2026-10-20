@@ -1,0 +1,561 @@
+/* @theme blackboard */
+/* 由 boppps-marp/scripts/make_theme.py 自动生成：
+ * assets/theme/_base.css + assets/palettes/blackboard.css
+ * 请勿直接改本文件，改上面两个源文件后重新生成。 */
+
+/* ════════════════════════════════════════════════════════════════
+ * BOPPPS × Marp 主题基底层（palette 无关）
+ *
+ * 本文件不单独使用。scripts/make_theme.py 会把它与 palettes/<name>.css
+ * 拼成一份自包含的主题文件，并把字体路径改写成本机绝对路径。
+ *
+ * 提供三样东西：
+ *   1. 中文字体栈与 @font-face（路径由脚本注入）
+ *   2. 横向布局组件库（.cols/.cards/.kpis/.steps/.flow/.grid2/.vs/.tri/.kv）
+ *   3. BOPPPS 教学层（页眉六点进度条、环节分隔页、callout、动作徽章）
+ *
+ * 配色一律走 CSS 变量，palette 文件负责定义并可任意覆盖本文件的规则
+ * （拼接时 palette 在后，优先级天然更高）。
+ * ════════════════════════════════════════════════════════════════ */
+
+@import 'default';
+
+:root {
+  /* ── 字体族 ── */
+  --font-body: 'LXGW WenKai', 'KaiTi', '楷体', 'STKaiti', serif;
+  --font-hei: 'HarmonyOS Sans SC', 'Microsoft YaHei', '微软雅黑',
+    'Source Han Sans SC', 'PingFang SC', sans-serif;
+  --font-song: 'Source Han Serif SC', 'Noto Serif SC', 'SimSun', serif;
+  --font-title: 'Smiley Sans', 'HarmonyOS Sans SC', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas,
+    'Noto Sans Mono CJK SC', 'Microsoft YaHei', monospace;
+
+  /* ── 配色兜底值（palette 会全部覆盖） ── */
+  --bg: #ffffff;
+  --soft: #f8fafc;
+  --ink: #0f172a;
+  --ink2: #475569;
+  --ink3: #94a3b8;
+  --line: #e2e8f0;
+  --accent: #2563eb;
+  --accent-dark: #1d4ed8;
+  --accent-soft: #eff6ff;
+  --alt: #dc2626;
+  --code-bg: #0f172a;
+  --code-text: #e2e8f0;
+  --card-bg: rgba(255, 255, 255, 0.75);
+  --shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+
+  --tip-bg: #eff6ff;  --tip-bd: #3b82f6;
+  --warn-bg: #fffbeb; --warn-bd: #f59e0b;
+  --task-bg: #f0fdf4; --task-bd: #22c55e;
+  --ask-bg: #faf5ff;  --ask-bd: #a855f7;
+
+  /* ── BOPPPS 六环节色相 ── */
+  --c-b: #f97316;
+  --c-o: #eab308;
+  --c-p1: #14b8a6;
+  --c-p2: #2563eb;
+  --c-p3: #8b5cf6;
+  --c-s: #64748b;
+}
+
+/* 本地字体，来自 I:\202609\course\theme\fonts
+ * src 顺序：系统已装字体 → 本机绝对路径。
+ * 字体目录若搬迁，重新跑一次 make_theme.py 即可。 */
+@font-face {
+  font-family: 'LXGW WenKai';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('LXGW WenKai'),
+    url('fonts/LXGWWenKai-Regular.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'LXGW WenKai';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('LXGW WenKai Medium'),
+    url('fonts/LXGWWenKai-Medium.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Smiley Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Smiley Sans'),
+    url('fonts/SmileySans-Oblique.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('HarmonyOS Sans SC'),
+    url('fonts/HarmonyOS_Sans_SC_Regular.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'HarmonyOS Sans SC';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('HarmonyOS Sans SC Bold'),
+    url('fonts/HarmonyOS_Sans_SC_Bold.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Source Han Sans SC';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Source Han Sans SC'),
+    url('fonts/SourceHanSansSC-Regular.otf') format('opentype');
+}
+@font-face {
+  font-family: 'Source Han Sans SC';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Source Han Sans SC Bold'),
+    url('fonts/SourceHanSansSC-Bold.otf') format('opentype');
+}
+@font-face {
+  font-family: 'Source Han Serif SC';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local('Source Han Serif SC'),
+    url('fonts/SourceHanSerifSC-Regular.otf') format('opentype');
+}
+@font-face {
+  font-family: 'Source Han Serif SC';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Source Han Serif SC Bold'),
+    url('fonts/SourceHanSerifSC-Bold.otf') format('opentype');
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * 一、基础版式
+ * ════════════════════════════════════════════════════════════════ */
+
+section {
+  width: 1280px;
+  height: 720px;
+  padding: 48px 64px 52px;
+  font-family: var(--font-body);
+  font-size: 26px;
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+h1 { font-size: 1.65em; color: var(--accent-dark); margin: 0 0 .5em; }
+h2 { font-size: 1.25em; color: var(--ink);         margin: .2em 0 .35em; }
+h3 { font-size: 1.05em; color: var(--accent-dark); margin: .3em 0 .2em; }
+h4 { font-size: .88em;  color: var(--ink2); font-weight: 700; margin: 0 0 .3em; }
+
+ul, ol { margin: .25em 0; }
+li { margin: .18em 0; }
+strong { color: var(--accent-dark); font-weight: 700; }
+em { color: var(--ink2); }
+a { color: var(--accent-dark); }
+
+code, pre { font-family: var(--font-mono); }
+code {
+  background: var(--soft);
+  color: var(--alt);
+  padding: .06em .35em;
+  border-radius: 4px;
+  font-size: .84em;
+}
+pre {
+  background: var(--code-bg);
+  border-radius: 10px;
+  padding: .8em 1em;
+  font-size: .68em;
+  line-height: 1.5;
+  max-height: 62%;
+  overflow: auto;
+}
+pre code { background: none; color: var(--code-text); padding: 0; font-size: 1em; }
+
+table { border-collapse: collapse; width: 100%; font-size: .78em; margin: .3em 0; }
+th {
+  font-family: var(--font-hei);
+  background: var(--soft);
+  color: var(--ink2);
+  font-weight: 600;
+  text-align: left;
+  padding: 7px 11px;
+  border-bottom: 2px solid var(--accent);
+}
+td { padding: 6px 11px; border-bottom: 1px solid var(--line); }
+
+blockquote {
+  border-left: 5px solid var(--accent);
+  background: var(--soft);
+  color: var(--ink2);
+  padding: .5em 1em;
+  margin: .5em 0;
+  font-size: .86em;
+}
+
+img { display: block; margin: .3em auto; max-height: 440px; }
+
+/* ════════════════════════════════════════════════════════════════
+ * 二、横向布局组件库
+ *    幻灯片是 16:9 的宽画布，默认就该横着排。
+ *    组件命名与 notes / orderflow 主题保持一致，可直接换皮。
+ * ════════════════════════════════════════════════════════════════ */
+
+/* ── 双栏 / 三栏。宽度比用修饰类：.cols.w2-1 / .w1-2 / .w3 ── */
+.cols { display: flex; gap: 1.2em; align-items: flex-start; margin: .3em 0; }
+.cols > div { flex: 1; min-width: 0; }
+.cols.w2-1 > div:first-child { flex: 2; }
+.cols.w1-2 > div:last-child  { flex: 2; }
+.cols.w3 { gap: 1em; font-size: .94em; }
+.cols.mid { align-items: center; }
+.sep { border-left: 1px solid var(--line); padding-left: 1.2em; }
+
+/* ── 卡片行 ── */
+.cards { display: flex; gap: 1em; align-items: stretch; margin: .4em 0; }
+.card {
+  flex: 1; min-width: 0;
+  background: var(--card-bg);
+  border-top: 6px solid var(--accent);
+  border-radius: 10px;
+  padding: .7em .9em;
+  box-shadow: var(--shadow);
+  font-size: .85em;
+  line-height: 1.45;
+}
+.card h3, .card h4 { margin: 0 0 .3em; font-size: 1.02em; color: var(--accent-dark); border: none; }
+.card ul { padding-left: 1em; margin: .1em 0; }
+
+/* ── KPI 大数字（导入环节摆真实数据用） ── */
+.kpis { display: flex; gap: 1em; text-align: center; margin: .5em 0; }
+.kpi {
+  flex: 1;
+  background: var(--card-bg);
+  border-radius: 10px;
+  padding: .6em;
+  box-shadow: var(--shadow);
+}
+.kpi .num { font-family: var(--font-title); font-size: 2.1em; font-weight: 700; color: var(--accent); line-height: 1.15; }
+.kpi .label { font-size: .7em; opacity: .75; }
+
+/* ── 步骤条（自动编号） ── */
+.steps { display: flex; gap: .6em; counter-reset: step; margin: .4em 0; }
+.steps > div {
+  flex: 1; min-width: 0;
+  background: var(--card-bg);
+  border-radius: 10px;
+  padding: .6em .7em;
+  font-size: .75em;
+  line-height: 1.42;
+}
+.steps > div::before {
+  counter-increment: step;
+  content: counter(step);
+  display: inline-block;
+  width: 1.6em; height: 1.6em;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  text-align: center; line-height: 1.6em;
+  font-weight: 700;
+  margin-bottom: .3em;
+}
+.steps strong { color: var(--accent-dark); font-size: 1.2em; }
+
+/* ── 流程条（步骤之间带箭头，画不下 mermaid 时用它） ── */
+.flow { display: flex; gap: 1.5em; align-items: stretch; margin: .6em 0; }
+.flow > .step {
+  flex: 1; min-width: 0;
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--accent);
+  border-radius: 10px;
+  padding: .55em .7em;
+  font-size: .76em;
+  line-height: 1.4;
+  text-align: center;
+}
+.flow > .step + .step { position: relative; }
+.flow > .step + .step::before {
+  content: '→';
+  position: absolute; left: -1.12em; top: 50%;
+  transform: translateY(-50%);
+  color: var(--ink3); font-size: 1.05em; font-weight: 700;
+}
+.flow > .step b { display: block; color: var(--accent-dark); font-size: 1.08em; }
+
+/* ── 2×N 要点网格 ── */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .8em 1.2em; margin: .3em 0; }
+.grid2 > div {
+  background: var(--card-bg);
+  border-left: 6px solid var(--accent);
+  border-radius: 8px;
+  padding: .5em .8em;
+  font-size: .8em;
+}
+.grid2 strong { color: var(--accent-dark); }
+
+/* ── 左右对比（.a 正 / .b 反） ── */
+.vs { display: flex; gap: 1em; margin: .4em 0; }
+.vs > div { flex: 1; min-width: 0; border-radius: 10px; padding: .7em .9em; font-size: .85em; }
+.vs .a { background: var(--accent-soft); border-top: 6px solid var(--accent); }
+.vs .b { background: var(--warn-bg);     border-top: 6px solid var(--alt); }
+
+/* ── 三目标横排（O 环节：知识 / 能力 / 素质） ── */
+.tri { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1em; margin: .5em 0; }
+.tri > div {
+  background: var(--card-bg);
+  border-top: 5px solid var(--accent);
+  border-radius: 10px;
+  padding: .7em .9em;
+  font-size: .8em;
+  line-height: 1.45;
+  box-shadow: var(--shadow);
+}
+.tri > div:nth-child(2) { border-top-color: var(--c-p1); }
+.tri > div:nth-child(3) { border-top-color: var(--c-p3); }
+.tri h4 { margin: 0 0 .35em; font-size: 1em; color: var(--ink); font-family: var(--font-hei); }
+.tri ul { padding-left: 1em; margin: 0; }
+
+/* ── 左标签右内容 ── */
+.kv { display: grid; grid-template-columns: auto 1fr; gap: .45em 1.1em; font-size: .85em; margin: .4em 0; }
+.kv > :nth-child(odd) { color: var(--accent-dark); font-weight: 700; white-space: nowrap; }
+
+/* ════════════════════════════════════════════════════════════════
+ * 三、Mermaid
+ *    渲染后是 <div class="mermaid"><svg>；未渲染时是 <pre><code
+ *    class="language-mermaid">。两种形态都给出可看的样子。
+ * ════════════════════════════════════════════════════════════════ */
+
+.mermaid {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  justify-content: center;
+  align-items: center;
+}
+.mermaid svg { max-width: 100%; max-height: 100%; width: auto; height: auto; }
+
+/* 未渲染时显示成虚线占位框，而不是一坨看不懂的代码 */
+pre:has(> code.language-mermaid) {
+  background: var(--soft);
+  border: 2px dashed var(--accent);
+  color: var(--ink3);
+  font-size: .55em;
+}
+pre:has(> code.language-mermaid) code { color: var(--ink3); }
+
+/* ════════════════════════════════════════════════════════════════
+ * 四、BOPPPS 教学层
+ * ════════════════════════════════════════════════════════════════ */
+
+/* ── 页眉六点进度条 ──
+ * frontmatter 里写一次 header，每页用 <!-- _class: at-p2 --> 点亮当前环节。 */
+/* marp-core 把 header 绝对定位且只锚 left:30px —— 必须左右双锚定，
+ * 否则 width:100% 会让盒子超出画布右缘，右对齐的进度条圆点被裁掉 */
+header {
+  position: absolute; left: 0; right: 0; width: auto;
+  box-sizing: border-box;
+  padding: 16px 64px 0;
+  color: var(--ink3); font-size: .5em; line-height: 1.2;
+}
+.bp { display: flex; gap: 5px; justify-content: flex-end; align-items: center; }
+.bp b {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.65em; height: 1.65em;
+  border-radius: 50%;
+  background: var(--line);
+  color: var(--bg);
+  font-family: var(--font-hei);
+  font-size: 1em; font-weight: 700;
+  line-height: 1;
+}
+section.at-b  .bp .b  { background: var(--c-b);  color: #fff; }
+section.at-o  .bp .o  { background: var(--c-o);  color: #fff; }
+section.at-p1 .bp .p1 { background: var(--c-p1); color: #fff; }
+section.at-p2 .bp .p2 { background: var(--c-p2); color: #fff; }
+section.at-p3 .bp .p3 { background: var(--c-p3); color: #fff; }
+section.at-s  .bp .s  { background: var(--c-s);  color: #fff; }
+
+footer { color: var(--ink3); font-size: .5em; }
+section::after { color: var(--ink3); font-size: .6em; }
+
+/* ── Callout ── */
+.callout { border-radius: 10px; padding: .6em 1em; font-size: .82em; line-height: 1.5; margin: .45em 0; }
+.callout.tip  { background: var(--tip-bg);  border-left: 5px solid var(--tip-bd); }
+.callout.warn { background: var(--warn-bg); border-left: 5px solid var(--warn-bd); }
+.callout.task { background: var(--task-bg); border-left: 5px solid var(--task-bd); }
+.callout.ask  { background: var(--ask-bg);  border-left: 5px solid var(--ask-bd); }
+.callout p { margin: .15em 0; }
+.callout strong { background: none; }
+
+/* ── 徽章：.act 学生动作 / .badge 时长 / .src 来源 ── */
+.act, .badge {
+  display: inline-block;
+  font-family: var(--font-hei);
+  border-radius: 999px;
+  font-size: .6em; font-weight: 700; letter-spacing: .04em;
+  vertical-align: middle; margin-left: .5em;
+  padding: .12em .8em;
+}
+.act   { background: var(--task-bd); color: #fff; }
+.badge { background: var(--accent-soft); color: var(--accent-dark); border: 1px solid var(--accent); }
+.src   { color: var(--ink3); font-size: .58em; margin-top: .5em; }
+.mini  { font-size: .74em; color: var(--ink2); }
+
+/* ── 页面类型 ── */
+section.lead    { justify-content: center; }
+section.divider { justify-content: center; }
+section.quote   { justify-content: center; text-align: center; }
+section.quote blockquote { border: none; font-size: 1.4em; line-height: 1.5; font-family: var(--font-song); }
+section.compact { font-size: 21px; }
+section.compact li { margin-bottom: .18em; }
+section.compact pre { font-size: .62em; }
+section.compact table { font-size: .72em; }
+
+/* 环节分隔页：<!-- _class: stage at-p2 -->，底色跟随该环节色相 */
+section.stage {
+  justify-content: center;
+  background: var(--c-p2);
+  color: #fff;
+}
+section.stage h1, section.stage h2 { color: #fff; border: none; }
+section.stage h2 { font-weight: 400; opacity: .88; }
+section.stage .badge { background: rgba(255,255,255,.2); color: #fff; border-color: rgba(255,255,255,.5); }
+section.stage strong { color: #fff; }
+section.stage.at-b  { background: var(--c-b); }
+section.stage.at-o  { background: var(--c-o); }
+section.stage.at-p1 { background: var(--c-p1); }
+section.stage.at-p2 { background: var(--c-p2); }
+section.stage.at-p3 { background: var(--c-p3); }
+section.stage.at-s  { background: var(--c-s); }
+
+/* ── 字体切换工具类 ── */
+.font-kai   { font-family: var(--font-body); }
+.font-hei   { font-family: var(--font-hei); }
+.font-yahei { font-family: 'Microsoft YaHei', '微软雅黑', 'PingFang SC', sans-serif; }
+.font-song  { font-family: var(--font-song); }
+.font-title { font-family: var(--font-title); }
+.font-mono  { font-family: var(--font-mono); }
+
+
+/* ══════════ palette: blackboard ══════════ */
+
+/* palette: blackboard —— 黑板粉笔
+ * 场景：理工科推导课、代码演示课、暗光/大阶梯教室，或整堂课要盯屏幕两小时
+ *       希望学生眼睛别那么累的时候。深色主题，投影对比度高。
+ * 观感：墨绿板面 + 粉笔白正文 + 粉笔黄标题，代码块反而变成浅色贴纸。
+ * 注意：深色页导出 PDF 后若要打印讲义会很费墨，建议打印版换 notes 或 swiss。
+ */
+
+:root {
+  --bg: #1f2d27;
+  --soft: rgba(255, 255, 255, 0.07);
+  --ink: #ece8dc;
+  --ink2: #b9c4bb;
+  --ink3: #7e8c82;
+  --line: rgba(236, 232, 220, 0.22);
+
+  --accent: #ffd966;        /* 粉笔黄 */
+  --accent-dark: #ffe89a;
+  --accent-soft: rgba(255, 217, 102, 0.13);
+  --alt: #ff8f6b;           /* 粉笔橙 */
+
+  --card-bg: rgba(255, 255, 255, 0.07);
+  --shadow: none;
+  --code-bg: #f4f1e8;       /* 代码块用浅色贴纸，深色板面上更易读 */
+  --code-text: #24302a;
+
+  --tip-bg: rgba(126, 196, 226, 0.13);  --tip-bd: #7ec4e2;
+  --warn-bg: rgba(255, 217, 102, 0.13); --warn-bd: #ffd966;
+  --task-bg: rgba(140, 214, 148, 0.13); --task-bd: #8cd694;
+  --ask-bg: rgba(200, 168, 232, 0.13);  --ask-bd: #c8a8e8;
+
+  --c-b: #ff8f6b;  --c-o: #ffd966;  --c-p1: #8cd694;
+  --c-p2: #7ec4e2; --c-p3: #c8a8e8; --c-s: #b9c4bb;
+}
+
+section {
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(255,255,255,.045) 0%, transparent 60%),
+    var(--bg);
+  color: var(--ink);
+}
+
+h1 {
+  font-size: 1.65em;
+  color: var(--accent);
+  border-bottom: 2px solid rgba(255, 217, 102, .45);
+  padding-bottom: .2em;
+  margin-bottom: .55em;
+}
+h2 { color: var(--ink); font-size: 1.22em; }
+h3 { color: var(--accent); }
+
+strong { color: var(--accent); }
+em { color: var(--alt); font-style: normal; }
+ul li::marker { color: var(--accent); }
+
+a { color: #7ec4e2; }
+code { background: rgba(255, 255, 255, .12); color: var(--accent); }
+pre { border: none; }
+pre code { color: var(--code-text); }
+
+blockquote { background: rgba(255, 255, 255, .06); border-left-color: var(--accent); color: var(--ink2); }
+
+th { background: rgba(255, 255, 255, .06); color: var(--accent); border-bottom: 2px solid rgba(255, 217, 102, .5); }
+td { border-bottom: 1px solid var(--line); }
+
+.card, .kpi, .steps > div, .grid2 > div, .tri > div, .flow > .step {
+  background: rgba(255, 255, 255, .07);
+  border: 1px solid var(--line);
+}
+.card { border-top: 5px solid var(--accent); }
+.grid2 > div { border-left: 5px solid var(--accent); }
+.flow > .step { border-top: 3px solid var(--accent); }
+.steps > div::before { background: var(--accent); color: #24302a; }
+.kpi .num { color: var(--accent); }
+.vs .a { background: rgba(126, 196, 226, .13); border-top-color: #7ec4e2; }
+.vs .b { background: rgba(255, 143, 107, .13); border-top-color: var(--alt); }
+.callout { color: var(--ink); }
+.badge { background: var(--accent-soft); color: var(--accent); border-color: rgba(255, 217, 102, .55); }
+.act { background: #8cd694; color: #1f2d27; }
+.bp b { background: rgba(255, 255, 255, .16); color: rgba(255,255,255,.5); }
+section.at-b .bp .b, section.at-o .bp .o, section.at-p1 .bp .p1,
+section.at-p2 .bp .p2, section.at-p3 .bp .p3, section.at-s .bp .s { color: #1f2d27; }
+
+/* 封面 / 分隔页：同一块板，只把标题放大写在中间，像老师刚写完 */
+section.lead { text-align: center; }
+section.lead h1 { border: none; font-size: 2.25em; }
+section.lead h2 { color: var(--ink2); font-weight: 400; }
+
+section.stage, section.divider {
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(255,255,255,.06) 0%, transparent 65%),
+    var(--bg);
+  text-align: center;
+  border-bottom: 12px solid var(--c-p2);
+}
+section.stage h1, section.divider h1 { color: var(--accent); border: none; font-size: 2.05em; }
+section.stage h2, section.divider h2 { color: var(--ink2); }
+section.stage strong { color: var(--accent); }
+section.stage .badge { background: rgba(255, 217, 102, .18); color: var(--accent); border-color: var(--accent); }
+section.stage.at-b  { border-bottom-color: var(--c-b);  }
+section.stage.at-o  { border-bottom-color: var(--c-o);  }
+section.stage.at-p1 { border-bottom-color: var(--c-p1); }
+section.stage.at-p2 { border-bottom-color: var(--c-p2); }
+section.stage.at-p3 { border-bottom-color: var(--c-p3); }
+section.stage.at-s  { border-bottom-color: var(--c-s);  }
+
+/* 未渲染的 mermaid 占位框在深色板面上的样子 */
+pre:has(> code.language-mermaid) { background: rgba(255,255,255,.05); border-color: var(--accent); }
+

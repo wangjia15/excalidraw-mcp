@@ -1,6 +1,6 @@
 # 工具速查：MCP 生成 + CLI 转 Mermaid + 验图
 
-## MCP（服务器 `excalidraw`，vault = course）
+## MCP 工具（每次调用都传 `vault: "<VAULT>"`）
 
 | 工具 | 用途 |
 |---|---|
@@ -9,12 +9,13 @@
 | `obsidian_list_drawings` | 查某课程目录下已有的课件，定讲次编号 |
 | `obsidian_write_mindmap` | 可选：整门课的知识地图，叶子链接各讲课件 |
 | `obsidian_write_template` | 可选：单独的模板图（对比、时间线、四象限…）嵌入课件 `image` |
+| `obsidian_install_vault_files` | 把 Mermaid 转换脚本和主题 CSS 装进 vault；默认只列计划，`apply:true` 才写，已有文件不覆盖 |
 
 ## CLI（Obsidian 原生命令）
 
 ```sh
-OB="$LOCALAPPDATA/Programs/Obsidian/Obsidian.com"
-"$OB" vault=course obsidian-excalidraw-plugin:status
+OB=obsidian   # Windows 不在 PATH 时：OB="$LOCALAPPDATA/Programs/Obsidian/Obsidian.com"
+"$OB" vault=<VNAME> obsidian-excalidraw-plugin:status
 ```
 
 - `vault=` 放在命令前。输出是 JSON，检查 `ok`、`status`、`mutation`、`persistence`；退出码 0 不代表成功。
@@ -25,8 +26,8 @@ OB="$LOCALAPPDATA/Programs/Obsidian/Obsidian.com"
 
 ```sh
 P="springboot4/05 Spring MVC 请求流程/05 Spring MVC 请求流程 课件.excalidraw.md"
-"$OB" vault=course obsidian-excalidraw-plugin:open path="$P"
-"$OB" vault=course obsidian-excalidraw-plugin:script path="$P" \
+"$OB" vault=<VNAME> obsidian-excalidraw-plugin:open path="$P"
+"$OB" vault=<VNAME> obsidian-excalidraw-plugin:script path="$P" \
   script="Excalidraw/Scripts/Mermaid to Excalidraw.md" trusted=true requestId=sb4-05-mmd-1
 ```
 
@@ -53,13 +54,13 @@ MCP 写占位框时把当前 `theme` 的配色存进 `customData.mermaidStyle`�
 微调用 CLI 的 `args.style` 覆盖部分颜色（与主题合并），例如强调判断节点：
 
 ```sh
-"$OB" vault=course obsidian-excalidraw-plugin:script path="$P" script="Excalidraw/Scripts/Mermaid to Excalidraw.md"   trusted=true requestId=sb4-05-mmd-2 args='{"style":{"decision":{"fill":"#fdf3dc","stroke":"#b8923f"},"line":"#35495e"}}'
+"$OB" vault=<VNAME> obsidian-excalidraw-plugin:script path="$P" script="Excalidraw/Scripts/Mermaid to Excalidraw.md"   trusted=true requestId=sb4-05-mmd-2 args='{"style":{"decision":{"fill":"#fdf3dc","stroke":"#b8923f"},"line":"#35495e"}}'
 ```
 
 - `args.theme:false` 保留 mermaid 原色；`args.sketch:true` 保留手绘风格。
 - 脚本只处理还没转换的占位框；要换配色重新转：先 MCP `overwrite` 重写（占位框回来），再带新 `args` 运行。只改个别元素用 `apply`。
 - `persistence` 可能是 `unknown`：脚本最后会 `forceSave`，以 `export source=disk` 的结果为准。
-- 脚本缺失时：`cp "$HOME/.claude/skills/boppps-lesson/scripts/Mermaid to Excalidraw.md" "I:/202609/course/Excalidraw/Scripts/"`。
+- 脚本缺失时：调用 `obsidian_install_vault_files`（`items:["scripts"]`，先看计划，用户同意后 `apply:true`）。
 - **MCP `overwrite` 重写后占位框会回来，必须重新转换。**
 - 转换失败（`error`）：多半是 Mermaid 语法问题（未加引号的括号、冒号），改代码后重写再转。
 
@@ -76,7 +77,7 @@ MCP 写占位框时把当前 `theme` 的配色存进 `customData.mermaidStyle`�
 ```
 
 ```sh
-"$OB" vault=course obsidian-excalidraw-plugin:export input=_cli/sb4-05-png-p8.json
+"$OB" vault=<VNAME> obsidian-excalidraw-plugin:export input=_cli/sb4-05-png-p8.json
 ```
 
 用 Read 看 PNG，至少检查：封面、一张 Mermaid 页、一张代码页、一张图片页、一张活动页。重点：

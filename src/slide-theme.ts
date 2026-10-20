@@ -116,12 +116,17 @@ export function themeFromCss(css: string, name: string): Theme {
   };
 }
 
-/** "fresh" | theme name (looked up in <vault>/theme/<name>.css) | path to a .css file */
-export function loadTheme(spec: string | undefined, vaultRoot?: string): Theme {
+/** "fresh" | theme name (looked up in <vault>/theme/<name>.css, then <bundledDir>/<name>.css) | path to a .css file */
+export function loadTheme(spec: string | undefined, vaultRoot?: string, bundledDir?: string): Theme {
   if (!spec || spec === "fresh") return FRESH;
+  const bare = !/[\/]/.test(spec);
   const candidates = [spec, spec.endsWith(".css") ? "" : `${spec}.css`]
     .filter(Boolean)
-    .flatMap((p) => (path.isAbsolute(p) ? [p] : [vaultRoot ? path.join(vaultRoot, "theme", p) : "", vaultRoot ? path.join(vaultRoot, p) : ""]))
+    .flatMap((p) => (path.isAbsolute(p) ? [p] : [
+      vaultRoot ? path.join(vaultRoot, "theme", p) : "",
+      vaultRoot ? path.join(vaultRoot, p) : "",
+      bare && bundledDir ? path.join(bundledDir, p) : "", // themes shipped with the plugin; the vault's copy wins
+    ]))
     .filter(Boolean);
   const file = candidates.find((f) => fs.existsSync(f));
   if (!file) throw new Error(`theme "${spec}" not found (looked in: ${candidates.join(", ")})`);

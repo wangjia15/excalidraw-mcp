@@ -74,8 +74,20 @@ fields are written as placeholders and converted inside Obsidian by the vault sc
 [`Mermaid to Excalidraw`](skills/boppps-lesson/scripts/Mermaid%20to%20Excalidraw.md), which uses the plugin's built-in
 mermaid-to-excalidraw and colours the diagram with the slide theme. Examples: [docs/examples](docs/examples).
 
-Two Claude Code skills built on these tools live in [skills/](skills/README.md): `paper-zettel` (Zettelkasten reading of
-LLM / vision papers) and `boppps-lesson` (BOPPPS teaching slides with a lesson plan on the back).
+### Claude Code plugin
+
+The repo is also a Claude Code plugin marketplace. The `excalidraw-obsidian` plugin bundles this MCP server (the committed
+`dist/index.js`, Node.js 18+, no build needed) with two skills, `paper-zettel` (Zettelkasten reading of LLM / vision
+papers) and `boppps-lesson` (BOPPPS teaching slides with a lesson plan on the back):
+
+```
+/plugin install excalidraw-obsidian --marketplace wangjia15/excalidraw-mcp
+```
+
+Every Obsidian tool takes an optional `vault` (absolute path of a folder containing `.obsidian/`); `OBSIDIAN_VAULT` is
+the default. `obsidian_install_vault_files` copies the Mermaid script and the slide theme CSS into a vault (dry run by
+default, never overwrites). Themes not found in `<vault>/theme/` fall back to `skills/boppps-lesson/themes/`.
+See [skills/README.md](skills/README.md).
 
 Full guide (Chinese): [docs/使用手册.md](docs/使用手册.md).
 

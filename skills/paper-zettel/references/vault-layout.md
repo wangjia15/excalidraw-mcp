@@ -1,4 +1,4 @@
-# Vault 结构（I:\obsidiannote\paper-zettel）
+# Vault 结构（论文 vault）
 
 ```
 Inbox/                              待读 PDF、临时摘录
@@ -10,7 +10,7 @@ Papers/<KEY>/
 Zettel/<主题>.excalidraw.md          永久卡（跨论文概念，obsidian_write_card，单文件正反面）
 Index/<领域> 地图.excalidraw.md       领域地图：链接各论文卡片盒和永久卡
 _cli/                               CLI 请求 JSON（apply/export 的 input 文件）
-theme/                              配色主题 CSS
+theme/                              配色主题 CSS（obsidian_install_vault_files 安装；不装也能用插件自带的）
 Excalidraw/Scripts/Downloaded/      Slideshow 与 Mindmap Builder 脚本
 ```
 

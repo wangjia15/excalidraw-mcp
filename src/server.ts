@@ -10,7 +10,7 @@ import type { CheckpointStore } from "./checkpoint-store.js";
 import { buildSlides } from "./slides.js";
 import { buildTemplate, TEMPLATE_KINDS } from "./templates.js";
 import { buildMindmap, GROWTH_MODES, imageNodes, parseOutline } from "./mindmap.js";
-import { getVaultRoot, imageSize, listDrawings, readDrawingFile, writeDrawing } from "./obsidian.js";
+import { getVaultRoot, imageSize, listDrawings, readDrawingFile, withVault, writeDrawing } from "./obsidian.js";
 import { loadTheme } from "./slide-theme.js";
 import { placeableCard, type CardSpec } from "./cards.js";
 
@@ -21,6 +21,10 @@ const MAX_INPUT_BYTES = 5 * 1024 * 1024;
 const DIST_DIR = import.meta.filename.endsWith(".ts")
   ? path.join(import.meta.dirname, "..", "dist")
   : import.meta.dirname;
+// files shipped with the Claude Code plugin (repo root = DIST_DIR/..)
+const PLUGIN_ROOT = path.join(DIST_DIR, "..");
+const BUNDLED_THEMES = process.env.EXCALIDRAW_THEMES_DIR ?? path.join(PLUGIN_ROOT, "skills", "boppps-lesson", "themes");
+const BUNDLED_SCRIPTS = path.join(PLUGIN_ROOT, "skills", "boppps-lesson", "scripts");
 
 // ============================================================
 // RECALL: shared knowledge for the agent
@@ -435,43 +439,46 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
     return o;
   };
   const fail = (e: unknown): CallToolResult => ({ isError: true, content: [{ type: "text", text: String((e as Error).message ?? e) }] });
+  const vaultParam = z.string().optional().describe("Absolute path of the Obsidian vault folder (must contain .obsidian/). Default: the OBSIDIAN_VAULT the server was started with.");
+  const inVault = (vault: string | undefined, fn: () => Promise<CallToolResult>) => withVault(vault, fn).catch(fail);
+  const themeOf = (theme?: string) => loadTheme(theme, getVaultRoot(), BUNDLED_THEMES);
 
   server.registerTool(
     "obsidian_list_drawings",
     {
       description: "List .excalidraw.md drawings in the Obsidian vault (set via OBSIDIAN_VAULT).",
-      inputSchema: { dir: z.string().optional().describe("Vault-relative folder, default vault root") },
+      inputSchema: { vault: vaultParam, dir: z.string().optional().describe("Vault-relative folder, default vault root") },
       annotations: { readOnlyHint: true },
     },
-    async ({ dir }): Promise<CallToolResult> => {
+    async ({ vault, dir }): Promise<CallToolResult> => inVault(vault, async () => {
       try { return text(JSON.stringify(await listDrawings(dir ?? ""), null, 2)); } catch (e) { return fail(e); }
-    },
+    }),
   );
 
   server.registerTool(
     "obsidian_read_drawing",
     {
       description: "Read an Obsidian Excalidraw plugin drawing and return its elements as JSON (usable as create_view input).",
-      inputSchema: {
+      inputSchema: { vault: vaultParam,
         path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
         withBack: z.boolean().optional().describe("return {frontmatter, back, elements} instead of the bare elements array"),
       },
       annotations: { readOnlyHint: true },
     },
-    async ({ path, withBack }): Promise<CallToolResult> => {
+    async ({ vault, path, withBack }): Promise<CallToolResult> => inVault(vault, async () => {
       try {
         const { scene, frontmatter, body } = await readDrawingFile(path);
         const elements = (scene.elements ?? []).filter((e: any) => !e.isDeleted);
         return text(JSON.stringify(withBack ? { frontmatter, back: body, elements } : elements));
       } catch (e) { return fail(e); }
-    },
+    }),
   );
 
   server.registerTool(
     "obsidian_write_drawing",
     {
       description: "Save elements (JSON array string, standard Excalidraw format) to an Obsidian .excalidraw.md file. Preserves existing frontmatter/appState/files when overwriting.",
-      inputSchema: {
+      inputSchema: { vault: vaultParam,
         path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
         elements: z.string().describe("JSON array of Excalidraw elements"),
         overwrite: z.boolean().optional().describe("Allow replacing an existing drawing"),
@@ -480,21 +487,21 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
         properties: propsParam,
       },
     },
-    async ({ path, elements, overwrite, style, back, properties }): Promise<CallToolResult> => {
+    async ({ vault, path, elements, overwrite, style, back, properties }): Promise<CallToolResult> => inVault(vault, async () => {
       try {
         const els = JSON.parse(elements);
         if (!Array.isArray(els)) throw new Error("elements must be a JSON array");
         await writeDrawing(path, els, overwrite ?? false, style ?? "professional", { body: back, properties: parseProps(properties) });
         return text(`Saved ${els.length} elements to ${path}`);
       } catch (e) { return fail(e); }
-    },
+    }),
   );
 
   server.registerTool(
     "obsidian_write_mindmap",
     {
       description: "Generate a Mind Map Builder compatible mindmap (.excalidraw.md) from an indented markdown outline (first line = root). growthMode matches the Growth Strategy of the Mind Map Builder script and is stored on the root node, so the script can relayout or switch strategy later. Images: a line `![说明](vault/relative/path.png)` becomes an embedded image node (PNG/JPEG/GIF/WebP, size read from the file); attach interpretation points as its siblings or under a caption node. theme (fresh, or a Marp theme name such as campus) sets colours and the canvas background.",
-      inputSchema: {
+      inputSchema: { vault: vaultParam,
         path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
         outline: z.string().describe("Indented markdown outline, first line is the root, children indented with 2 spaces or a tab"),
         growthMode: z.enum(GROWTH_MODES).optional().describe("Growth Strategy, default Right-Left"),
@@ -509,10 +516,10 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
         overwrite: z.boolean().optional(),
       },
     },
-    async ({ path, outline, growthMode, theme, maxWidth, imageWidth, font, frames, frameHeight, back, properties, overwrite }): Promise<CallToolResult> => {
+    async ({ vault, path, outline, growthMode, theme, maxWidth, imageWidth, font, frames, frameHeight, back, properties, overwrite }): Promise<CallToolResult> => inVault(vault, async () => {
       try {
         const mode = growthMode ?? "Right-Left";
-        const th = loadTheme(theme, getVaultRoot());
+        const th = themeOf(theme);
         const tree = parseOutline(outline);
         for (const n of imageNodes(tree)) {
           const sz = await imageSize(n.img!.path);
@@ -524,14 +531,14 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
         const nFrames = els.filter((e) => e.type === "frame").length;
         return text(`Saved mindmap (${els.length} elements, ${mode}, theme ${th.name}${nFrames ? `, ${nFrames} slideshow frames` : ""}) to ${path}`);
       } catch (e) { return fail(e); }
-    },
+    }),
   );
 
   server.registerTool(
     "obsidian_write_slides",
     {
       description: "Generate a slide deck for the Obsidian Excalidraw Slideshow script: one 1920x1080 frame per slide, with order, presenter notes and bullet-by-bullet appear animations stored in the frame metadata the script reads. deck is a JSON string: {title?, titleFont?:'sans'|'hand'|'local', bodyFont?, progress?, slides:[{title, subtitle?, bullets?:string[], code?:string, codeTitle?, codeLang?, flow?:string[], kpis?:[{num,label}], vs?:{left:{title,items},right:{title,items}}, kv?:[[key,value]], image?:{path,caption?} (vault picture, shown with caption beside or above the bullets), mermaid?: string|{code,ratio?,caption?} (placeholder box keeping the code; the vault EA script \"Mermaid to Excalidraw\" turns it into native elements via the plugin, run it through the native CLI script command), callouts?:[{kind:'tip'|'warn'|'task'|'ask',text}], stage?:'b'|'o'|'p1'|'p2'|'p3'|'s', type?:'stage'|'divider', badge?, act?, notes?, layout?, animate?}]}. stage lights the BOPPPS six-dot progress and colours stage dividers. The first slide is a cover; slides without content become section dividers; a leading number in the title ('3 Foo') becomes a chapter badge. Bullets are auto-rendered as cards ('Head：body' lines), numbered steps (①/1. prefixes), a table (lines with →, HTTP methods get coloured pills) or list rows; override with layout. Code is syntax highlighted (java/ts/vue/yaml/json/http/sh/xml, auto-detected). flow items become a serpentine process diagram.",
-      inputSchema: {
+      inputSchema: { vault: vaultParam,
         path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
         deck: z.string().describe("JSON deck specification"),
         theme: z.string().optional().describe("'fresh' (default), a Marp theme name from <vault>/theme/<name>.css (campus, campus43, blackboard, ink, swiss ...) or an absolute .css path. Colours, slide size and cover/stage styling follow the theme."),
@@ -540,7 +547,7 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
         overwrite: z.boolean().optional(),
       },
     },
-    async ({ path, deck, theme, back, properties, overwrite }): Promise<CallToolResult> => {
+    async ({ vault, path, deck, theme, back, properties, overwrite }): Promise<CallToolResult> => inVault(vault, async () => {
       try {
         const spec = JSON.parse(deck);
         if (!Array.isArray(spec.slides) || !spec.slides.length) throw new Error("deck.slides must be a non-empty array");
@@ -551,18 +558,18 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
             sl.image.w = sz.w; sl.image.h = sz.h;
           }
         }
-        const els = buildSlides(spec, loadTheme(theme, getVaultRoot()));
+        const els = buildSlides(spec, themeOf(theme));
         await writeDrawing(path, els, overwrite ?? false, "professional", { body: back, properties: parseProps(properties) });
         return text(`Saved ${spec.slides.length} slides (${els.length} elements) to ${path}. Run the Slideshow script in Obsidian to present.`);
       } catch (e) { return fail(e); }
-    },
+    }),
   );
 
   server.registerTool(
     "obsidian_write_template",
     {
       description: "Generate a Chinese-optimised diagram from a template into an Obsidian .excalidraw.md file. kinds: layers (分层架构), timeline (时间线), compare (左右对比), table (表格), tree (树状/组织结构), swimlane (泳道流程), quadrant (四象限), funnel (漏斗/金字塔), cycle (循环), cards (要点卡片), flow (流程图). spec is a JSON string whose shape depends on kind; call obsidian_template_help for the shapes.",
-      inputSchema: {
+      inputSchema: { vault: vaultParam,
         path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
         kind: z.enum(TEMPLATE_KINDS),
         spec: z.string().describe("JSON spec for the chosen kind"),
@@ -572,20 +579,20 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
         overwrite: z.boolean().optional(),
       },
     },
-    async ({ path, kind, spec, font, back, properties, overwrite }): Promise<CallToolResult> => {
+    async ({ vault, path, kind, spec, font, back, properties, overwrite }): Promise<CallToolResult> => inVault(vault, async () => {
       try {
         const els = buildTemplate(kind, JSON.parse(spec), font ?? "sans");
         await writeDrawing(path, els, overwrite ?? false, "professional", { body: back, properties: parseProps(properties) });
         return text(`Saved ${kind} template (${els.length} elements) to ${path}`);
       } catch (e) { return fail(e); }
-    },
+    }),
   );
 
   server.registerTool(
     "obsidian_write_paper_board",
     {
       description: "Write a whole paper as ONE .excalidraw.md: a mind map whose leaf nodes ARE the visual zettel cards (framed 16:9 cards joined to the map by its branches; Slideshow plays the overview then every card in map order), and a markdown back (markdown view) with the paper notes plus one section per card that embeds the card picture and its explanation. board JSON: {key, title, series?, outline, cards:[card], growthMode?, cardScale?}. outline: indented markdown, first line = root, a line '@<card id>' places that card (each card at most once; unplaced cards go to a '其他' branch), [[links]] allowed. card: {id:'VIT-M01', title (assertion), type?: Q|C|M|D|E|R|A|K|I|Z (default from the id letter), subtitle?, visual?: V | [V, V], points?: [{n, text}|string] (<=5, n matches figure marks), takeaway?, source?: 'Fig.2 · §3.1', notes? (presenter notes), back? (markdown explanation, mermaid ok)}. V kinds: {kind:'figure', path:'Papers/X/assets/fig2.png', caption?, marks?:[{n,x,y}], boxes?:[{n?,x,y,w,h}]} (x/y/w/h are 0..1 fractions of the image) | {kind:'template', template:<obsidian_write_template kind>, spec} | {kind:'bars', title?, unit?, items:[{label,value,hl?}]} | {kind:'matrix', title?, rows?, cols?, values?:number[][], pattern?:'causal'|'diagonal'|'local'|'full', size?, showValues?} | {kind:'tensor', steps:[{label:'B×196×768', dims?, op?:'Linear'}]} | {kind:'stack', title?, input?, output?, repeat?:'×12', layers:[{label, kind?:'norm'|'attn'|'mlp'|'add'|'embed'|'head'|'other'}] (bottom first), residual?:[[fromLayer,toAddLayer]]} | {kind:'patches', rows, cols, label?, cls?} | {kind:'sketch', elements:[excalidraw elements]}.",
-      inputSchema: {
+      inputSchema: { vault: vaultParam,
         path: z.string().describe("Vault-relative path ending in .excalidraw.md, e.g. Papers/VIT/VIT 卡片盒.excalidraw.md"),
         board: z.string().describe("JSON board spec"),
         back: z.string().optional().describe("Markdown paper notes put before the per-card sections of the back"),
@@ -595,11 +602,11 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
         overwrite: z.boolean().optional(),
       },
     },
-    async ({ path, board, back, properties, theme, font, overwrite }): Promise<CallToolResult> => {
+    async ({ vault, path, board, back, properties, theme, font, overwrite }): Promise<CallToolResult> => inVault(vault, async () => {
       try {
         const b = JSON.parse(board);
         if (!b || !b.outline || !Array.isArray(b.cards) || !b.cards.length) throw new Error("board needs outline and a non-empty cards array");
-        const th = loadTheme(theme, getVaultRoot()), fontId = { sans: 2, hand: 5, local: 4 }[font ?? "sans"];
+        const th = themeOf(theme), fontId = { sans: 2, hand: 5, local: 4 }[font ?? "sans"];
         const specs: CardSpec[] = b.cards;
         const seen = new Set<string>();
         for (const c of specs) {
@@ -642,14 +649,14 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
         });
         return text(`Saved board ${b.key ?? ""}: ${specs.length} cards (${rest.length} unplaced → 其他), ${els.length} elements, to ${path}. Slideshow: overview + cards in map order. Card order: ${order.join(", ")}`);
       } catch (e) { return fail(e); }
-    },
+    }),
   );
 
   server.registerTool(
     "obsidian_write_card",
     {
       description: "Write one zettel card as a single .excalidraw.md: the front (Excalidraw view) is one 1920x1080 slide, optionally with a hand-drawn sketch beside it; the back (markdown view, toggle with 'Toggle between Excalidraw and Markdown mode') is the given markdown. card is ONE slide of the obsidian_write_slides schema ({title, subtitle?, bullets?, flow?, kv?, vs?, kpis?, code?, image?, callouts?, notes?, layout?}); it is never rendered as a cover. image.path may be a PNG/JPEG/GIF/WebP or another .excalidraw.md (embedded drawing). sketch is a JSON array of standard Excalidraw elements in their own coordinates (origin at the sketch's top-left), placed to the right of the slide; unset roughness/fontFamily default to hand-drawn (1 / Excalifont).",
-      inputSchema: {
+      inputSchema: { vault: vaultParam,
         path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
         card: z.string().describe("JSON of a single slide spec"),
         back: backParam,
@@ -662,7 +669,7 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
         overwrite: z.boolean().optional(),
       },
     },
-    async ({ path, card, back, properties, cardId, series, sketch, theme, font, overwrite }): Promise<CallToolResult> => {
+    async ({ vault, path, card, back, properties, cardId, series, sketch, theme, font, overwrite }): Promise<CallToolResult> => inVault(vault, async () => {
       try {
         const slide = JSON.parse(card);
         if (!slide || typeof slide !== "object" || Array.isArray(slide) || !slide.title) throw new Error("card must be a JSON object with a title");
@@ -671,7 +678,7 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
           if (!sz) throw new Error(`cannot read image size of ${slide.image.path} (use PNG, JPEG, GIF, WebP or a non-empty .excalidraw.md inside the vault)`);
           slide.image.w = sz.w; slide.image.h = sz.h;
         }
-        const th = loadTheme(theme, getVaultRoot());
+        const th = themeOf(theme);
         const els = buildSlides({ title: series, slides: [slide], firstIsCover: false, pageLabel: cardId ?? "", progress: false, titleFont: font, bodyFont: font }, th);
         let nSketch = 0;
         if (sketch) {
@@ -688,7 +695,42 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
         await writeDrawing(path, els, overwrite ?? false, "professional", { body: back, properties: parseProps(properties) });
         return text(`Saved card ${cardId ?? ""} (${els.length} elements${nSketch ? `, ${nSketch} sketch` : ""}${back ? ", with back" : ""}) to ${path}`);
       } catch (e) { return fail(e); }
+    }),
+  );
+
+  server.registerTool(
+    "obsidian_install_vault_files",
+    {
+      description: "Copy the vault-side files this plugin relies on into an Obsidian vault: the EA script 'Mermaid to Excalidraw' (Excalidraw/Scripts/, converts slide mermaid placeholders) and the slide theme CSS (theme/*.css, also usable as Marp themes). Existing files are never overwritten. Without apply:true it only reports the plan; show it to the user and get approval before applying.",
+      inputSchema: {
+        vault: vaultParam,
+        items: z.array(z.enum(["scripts", "themes"])).optional().describe("default both"),
+        apply: z.boolean().optional().describe("false (default) = dry run: list what would be written"),
+      },
     },
+    async ({ vault, items, apply }): Promise<CallToolResult> => inVault(vault, async () => {
+      try {
+        const root = getVaultRoot(), want = new Set(items ?? ["scripts", "themes"]);
+        const plan: { from: string; to: string }[] = [];
+        const add = async (dir: string, filter: (f: string) => boolean, dest: string) => {
+          for (const f of (await fs.readdir(dir)).filter(filter).sort()) plan.push({ from: path.join(dir, f), to: `${dest}/${f}` });
+        };
+        if (want.has("scripts")) await add(BUNDLED_SCRIPTS, (f) => f.endsWith(".md"), "Excalidraw/Scripts");
+        if (want.has("themes")) await add(BUNDLED_THEMES, (f) => f.endsWith(".css"), "theme");
+        const rows: string[] = [];
+        for (const { from, to } of plan) {
+          const target = path.join(root, to), src = await fs.readFile(from);
+          const cur = await fs.readFile(target).catch(() => null);
+          if (cur) { rows.push(`${cur.equals(src) ? "same   " : "differs"} ${to} (kept)`); continue; }
+          if (apply) {
+            await fs.mkdir(path.dirname(target), { recursive: true });
+            await fs.writeFile(target, src, { flag: "wx" });
+            rows.push(`written ${to}`);
+          } else rows.push(`new     ${to}`);
+        }
+        return text(`${apply ? "Installed into" : "Plan for"} ${root}:\n${rows.join("\n")}${apply ? "" : "\nCall again with apply:true to write the new files."}`);
+      } catch (e) { return fail(e); }
+    }),
   );
 
   server.registerTool(

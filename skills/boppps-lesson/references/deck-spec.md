@@ -64,7 +64,7 @@
 2. 下载到**新建的**讲目录 `assets/`：
 
    ```sh
-   A="I:/202609/course/<课程>/<NN 主题>/assets"; mkdir -p "$A"
+   A="<VAULT>/<课程>/<NN 主题>/assets"; mkdir -p "$A"
    curl -L --fail -A "Mozilla/5.0" -o "$A/dispatcher.png" "<图片URL>"
    file "$A/dispatcher.png"     # 必须是 PNG/JPEG/GIF/WebP 图片
    ```

@@ -1,6 +1,6 @@
 ---
 name: boppps-lesson
-description: 按 BOPPPS 教学模式生成教学用 PPT 和配套教案：一个 Excalidraw 文档 = 一讲课。正面（Excalidraw 面）是 16:9 幻灯片（BOPPPS 六点进度、环节分隔页、时长徽章、代码高亮、Mermaid 图经插件内置 mermaid-to-excalidraw 转成原生图形、网上搜集的配图、逐条动画、演讲者备注，可用 Slideshow 放映），背面（Markdown 面）是根据这套 PPT 写的完整教案（学情、目标、重难点、BOPPPS 教学过程表、板书、作业、反思、图片来源）。用户提供资料就读资料，没提供就上网搜索教学内容。存入 Obsidian course vault（I:\202609\course），生成用 excalidraw MCP，Mermaid 转换与验图用 Obsidian Excalidraw 原生 CLI。当用户说"做一讲课件/PPT + 教案""按 BOPPPS 设计一节课""生成教学 PPT 和教案""给 X 主题备课"，或给出教材/讲义/链接希望做成课件和教案时使用。
+description: 按 BOPPPS 教学模式生成教学用 PPT 和配套教案：一个 Excalidraw 文档 = 一讲课。正面（Excalidraw 面）是 16:9 幻灯片（BOPPPS 六点进度、环节分隔页、时长徽章、代码高亮、Mermaid 图经插件内置 mermaid-to-excalidraw 转成原生图形、网上搜集的配图、逐条动画、演讲者备注，可用 Slideshow 放映），背面（Markdown 面）是根据这套 PPT 写的完整教案（学情、目标、重难点、BOPPPS 教学过程表、板书、作业、反思、图片来源）。用户提供资料就读资料，没提供就上网搜索教学内容。存入用户的 Obsidian vault，生成用本插件的 Excalidraw MCP 工具，Mermaid 转换与验图用 Obsidian Excalidraw 原生 CLI。当用户说"做一讲课件/PPT + 教案""按 BOPPPS 设计一节课""生成教学 PPT 和教案""给 X 主题备课"，或给出教材/讲义/链接希望做成课件和教案时使用。
 ---
 
 # BOPPPS 课件 + 教案（boppps-lesson）
@@ -14,15 +14,16 @@ description: 按 BOPPPS 教学模式生成教学用 PPT 和配套教案：一个
 
 | 项 | 值 |
 |---|---|
-| Vault | `I:\202609\course`（Obsidian vault 名：`course`）；用户指定其他 vault 时，要求该 vault 也装了下面两个脚本 |
-| 生成工具 | MCP 服务器 `excalidraw`（`mcp__excalidraw__obsidian_write_slides` 等），它指向 course vault。**不要**用 `excalidraw-zettel` |
-| Mermaid 转换 | vault 脚本 `Excalidraw/Scripts/Mermaid to Excalidraw.md`（备份：本技能 `scripts/Mermaid to Excalidraw.md`，缺失时复制过去） |
+| Vault | 用户指定的课程 vault（绝对路径，例如 `D:\notes\course`）。没指定时用 MCP 默认 vault（插件配置的 `OBSIDIAN_VAULT`）；两者都没有就问用户。下文 `<VAULT>` 指 vault 根目录，`<VNAME>` 指它在 Obsidian 里的名字（通常就是文件夹名） |
+| 生成工具 | 本插件的 MCP 工具（名字以 `obsidian_` 结尾，如 `obsidian_write_slides`）。每次调用都传 `vault: "<VAULT>"` |
+| Vault 准备 | 第一次在某个 vault 里用时，调用 `obsidian_install_vault_files`：先不带 `apply` 看计划，告诉用户要写哪些文件，同意后 `apply:true`，装上 `Excalidraw/Scripts/Mermaid to Excalidraw.md` 和 `theme/*.css`。已有文件不会被覆盖 |
+| Mermaid 转换 | vault 脚本 `Excalidraw/Scripts/Mermaid to Excalidraw.md`（源文件在本技能 `scripts/`，用 `obsidian_install_vault_files` 安装） |
 | 放映 | `Excalidraw/Scripts/Downloaded/Slideshow.md` |
-| CLI | `"$LOCALAPPDATA/Programs/Obsidian/Obsidian.com" vault=course obsidian-excalidraw-plugin:<命令>`；规则见 `I:\app\obsidian-excalidraw-cli\SKILL.md`（第一次用前读一遍） |
-| 主题 | `theme/` 下的 campus（默认，16:9）、campus43（4:3）、blackboard、ink、swiss |
+| CLI | `obsidian vault=<VNAME> obsidian-excalidraw-plugin:<命令>`（Windows 上不在 PATH 时用 `"$LOCALAPPDATA/Programs/Obsidian/Obsidian.com"`）；第一次用前跑 `schema` 看各命令的参数 |
+| 主题 | campus（默认，16:9）、campus43（4:3）、blackboard、ink、swiss。先找 vault 的 `theme/<名>.css`，没有就用本技能 `themes/` 自带的；vault 里用户改过的版本优先 |
 
-1. 如果 `obsidian_write_slides` 不接受 `mermaid` 字段或 `back` 参数，提示用户重启 Claude Code（MCP 需要加载新构建）。
-2. 跑一次 CLI `status`，返回 `ok:true, ready:true, vault:"course"` 才能做 Mermaid 转换和验图。Obsidian 没开时只生成，汇报里写明"Mermaid 仍是占位框，未经 Obsidian 渲染验证"。
+1. 如果找不到 `obsidian_write_slides`，提示用户检查插件是否启用（`/plugin`）并重启 Claude Code。
+2. 跑一次 CLI `status`，返回 `ok:true, ready:true, vault:"<VNAME>"` 才能做 Mermaid 转换和验图。Obsidian 没开时只生成，汇报里写明"Mermaid 仍是占位框，未经 Obsidian 渲染验证"。
 
 ## 1. 工作流
 

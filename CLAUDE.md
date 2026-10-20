@@ -212,7 +212,7 @@ grep "Excalidraw" ~/Library/Logs/Claude/claude.ai-web.log | tail -20
 
 ## Obsidian Excalidraw plugin support
 
-`src/obsidian.ts` + tools `obsidian_list_drawings`, `obsidian_read_drawing`, `obsidian_write_drawing` read/write `.excalidraw.md` files (compressed-json format of obsidian-excalidraw-plugin) in the vault given by the `OBSIDIAN_VAULT` env var. Paths are vault-relative and confined to the vault. Read output is a plain elements array usable as `create_view` input.
+`src/obsidian.ts` + tools `obsidian_list_drawings`, `obsidian_read_drawing`, `obsidian_write_drawing` read/write `.excalidraw.md` files (compressed-json format of obsidian-excalidraw-plugin) in the vault given by the tool's optional `vault` argument (absolute path of a folder containing `.obsidian/`, scoped per call with AsyncLocalStorage) or else the `OBSIDIAN_VAULT` env var. Paths are vault-relative and confined to the vault. Read output is a plain elements array usable as `create_view` input.
 
 Set `EXCALIDRAW_LIB=<path to a local excalidraw package>` at build time (e.g. `obsidian-excalidraw-plugin/node_modules/@zsviczian/excalidraw`, after `npm install` there) to bundle that fork into the widget instead of loading the official build from esm.sh (see `vite.config.ts`). The plugin repo currently has no `node_modules`, so this path is untested.
 
@@ -233,3 +233,5 @@ Mindmaps support image nodes (`![alt](vault/path.png)` in the outline): `type: "
 Slides accept `image: {path, caption?}` (vault picture; the MCP tool fills in w/h from the file). Wide images (>2.2:1) go above the bullets, others beside them; images are embedded via `customData.vaultPath` + `fileId = sha1(path)` like mindmap image nodes.
 
 Mindmaps are XMind styled (capsule root, filled level-1 boxes, tinted level-2 boxes, underlined plain text below, tapering curves). With `frames` (default) the result also carries Slideshow marker frames (no children, `frameRendering.clip=false`): an overview + one 16:9 frame per branch, long branches split by `frameHeight`; notes = branch outline. `font`: sans (2) | hand (5) | local (4, plugin Local Font). Right-Left splits branches by measured height.
+
+Claude Code plugin: `.claude-plugin/plugin.json` (MCP server inline, runs `${CLAUDE_PLUGIN_ROOT}/dist/index.js`) and `.claude-plugin/marketplace.json` (the repo is its own marketplace). `dist/index.js` and `dist/mcp-app.html` are committed because plugins are not built on install: rebuild (`PATH="$PWD/node_modules/.bin:$PATH" node scripts/build.mjs`) and commit them together with any `src/` change. Skills live in `skills/` (`paper-zettel`, `boppps-lesson`); slide theme CSS ships in `skills/boppps-lesson/themes/` as the fallback for themes missing from `<vault>/theme/`, and `obsidian_install_vault_files` copies those themes and the `Mermaid to Excalidraw` EA script into a vault (dry run by default, never overwrites). Validate with `claude plugin validate .`.
