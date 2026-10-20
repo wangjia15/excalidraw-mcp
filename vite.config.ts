@@ -5,8 +5,18 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 
 const isDevelopment = process.env.NODE_ENV === "development";
 
+// Optional: bundle a local Excalidraw build (e.g. the @zsviczian/excalidraw fork used by
+// obsidian-excalidraw-plugin) instead of loading the official one from esm.sh.
+// Example: EXCALIDRAW_LIB=I:/app/obsidian-excalidraw-plugin/node_modules/@zsviczian/excalidraw
+const localExcalidraw = process.env.EXCALIDRAW_LIB
+  ? path.resolve(process.env.EXCALIDRAW_LIB)
+  : undefined;
+
 export default defineConfig({
   plugins: [react(), viteSingleFile()],
+  resolve: localExcalidraw
+    ? { alias: { "@excalidraw/excalidraw": localExcalidraw } }
+    : undefined,
   build: {
     sourcemap: isDevelopment ? "inline" : undefined,
     cssMinify: !isDevelopment,
@@ -19,7 +29,7 @@ export default defineConfig({
         "react-dom",
         "react-dom/client",
         "react/jsx-runtime",
-        "@excalidraw/excalidraw",
+        ...(localExcalidraw ? [] : ["@excalidraw/excalidraw"]),
         "morphdom",
       ],
       output: {

@@ -7,6 +7,12 @@ import path from "node:path";
 import { deflateSync } from "node:zlib";
 import { z } from "zod/v4";
 import type { CheckpointStore } from "./checkpoint-store.js";
+import { buildSlides } from "./slides.js";
+import { buildTemplate, TEMPLATE_KINDS } from "./templates.js";
+import { buildMindmap, GROWTH_MODES, imageNodes, parseOutline } from "./mindmap.js";
+import { getVaultRoot, imageSize, listDrawings, readDrawingFile, withVault, writeDrawing } from "./obsidian.js";
+import { loadTheme } from "./slide-theme.js";
+import { placeableCard, type CardSpec } from "./cards.js";
 
 /** Maximum allowed size for element/data input strings (5 MB). */
 const MAX_INPUT_BYTES = 5 * 1024 * 1024;
@@ -15,6 +21,10 @@ const MAX_INPUT_BYTES = 5 * 1024 * 1024;
 const DIST_DIR = import.meta.filename.endsWith(".ts")
   ? path.join(import.meta.dirname, "..", "dist")
   : import.meta.dirname;
+// files shipped with the Claude Code plugin (repo root = DIST_DIR/..)
+const PLUGIN_ROOT = path.join(DIST_DIR, "..");
+const BUNDLED_THEMES = process.env.EXCALIDRAW_THEMES_DIR ?? path.join(PLUGIN_ROOT, "skills", "boppps-lesson", "themes");
+const BUNDLED_SCRIPTS = path.join(PLUGIN_ROOT, "skills", "boppps-lesson", "scripts");
 
 // ============================================================
 // RECALL: shared knowledge for the agent
@@ -415,6 +425,341 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
     },
   );
 
+
+  // ============================================================
+  // Obsidian Excalidraw plugin tools (require OBSIDIAN_VAULT env)
+  // ============================================================
+  const text = (t: string): CallToolResult => ({ content: [{ type: "text", text: t }] });
+  const backParam = z.string().optional().describe("Markdown kept above '# Excalidraw Data': the note side shown in markdown view (the back of a card). Mermaid, callouts, [[links]] and ![[embeds]] work. Omitted on overwrite = keep the existing text.");
+  const propsParam = z.string().optional().describe("JSON object of frontmatter properties, e.g. {\"tags\":[\"zettel\"],\"paper\":\"[[...]]\"}. excalidraw-plugin: parsed is always added. Omitted on overwrite = keep the existing frontmatter.");
+  const parseProps = (p?: string): Record<string, unknown> | undefined => {
+    if (p === undefined) return undefined;
+    const o = JSON.parse(p);
+    if (!o || typeof o !== "object" || Array.isArray(o)) throw new Error("properties must be a JSON object");
+    return o;
+  };
+  const fail = (e: unknown): CallToolResult => ({ isError: true, content: [{ type: "text", text: String((e as Error).message ?? e) }] });
+  const vaultParam = z.string().optional().describe("Absolute path of the Obsidian vault folder (must contain .obsidian/). Default: the OBSIDIAN_VAULT the server was started with.");
+  const inVault = (vault: string | undefined, fn: () => Promise<CallToolResult>) => withVault(vault, fn).catch(fail);
+  const themeOf = (theme?: string) => loadTheme(theme, getVaultRoot(), BUNDLED_THEMES);
+  /** presenter notes as a callout on the markdown side */
+  const notesCallout = (notes?: string) => (notes?.trim() ? `> [!note] 讲稿\n${notes.trim().split(/\r?\n/).map((l) => `> ${l}`).join("\n")}\n` : "");
+  const SLIDES_START = "%% slides:start · obsidian_write_slides 生成：每页的嵌入和讲稿，重写课件时整段更新，请不要手改 %%";
+  const SLIDES_END = "%% slides:end %%";
+  const SLIDES_BLOCK = /\n*%% slides:start[^\n]*%%[\s\S]*?%% slides:end %%\n*/;
+
+  server.registerTool(
+    "obsidian_list_drawings",
+    {
+      description: "List .excalidraw.md drawings in the Obsidian vault (set via OBSIDIAN_VAULT).",
+      inputSchema: { vault: vaultParam, dir: z.string().optional().describe("Vault-relative folder, default vault root") },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ vault, dir }): Promise<CallToolResult> => inVault(vault, async () => {
+      try { return text(JSON.stringify(await listDrawings(dir ?? ""), null, 2)); } catch (e) { return fail(e); }
+    }),
+  );
+
+  server.registerTool(
+    "obsidian_read_drawing",
+    {
+      description: "Read an Obsidian Excalidraw plugin drawing and return its elements as JSON (usable as create_view input).",
+      inputSchema: { vault: vaultParam,
+        path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
+        withBack: z.boolean().optional().describe("return {frontmatter, back, elements} instead of the bare elements array"),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    async ({ vault, path, withBack }): Promise<CallToolResult> => inVault(vault, async () => {
+      try {
+        const { scene, frontmatter, body } = await readDrawingFile(path);
+        const elements = (scene.elements ?? []).filter((e: any) => !e.isDeleted);
+        return text(JSON.stringify(withBack ? { frontmatter, back: body, elements } : elements));
+      } catch (e) { return fail(e); }
+    }),
+  );
+
+  server.registerTool(
+    "obsidian_write_drawing",
+    {
+      description: "Save elements (JSON array string, standard Excalidraw format) to an Obsidian .excalidraw.md file. Preserves existing frontmatter/appState/files when overwriting.",
+      inputSchema: { vault: vaultParam,
+        path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
+        elements: z.string().describe("JSON array of Excalidraw elements"),
+        overwrite: z.boolean().optional().describe("Allow replacing an existing drawing"),
+        style: z.enum(["professional", "none"]).optional().describe("Default template applied to unset properties: professional (default) = roughness 0, Helvetica, 1.5px strokes; none = leave elements as given"),
+        back: backParam,
+        properties: propsParam,
+      },
+    },
+    async ({ vault, path, elements, overwrite, style, back, properties }): Promise<CallToolResult> => inVault(vault, async () => {
+      try {
+        const els = JSON.parse(elements);
+        if (!Array.isArray(els)) throw new Error("elements must be a JSON array");
+        await writeDrawing(path, els, overwrite ?? false, style ?? "professional", { body: back, properties: parseProps(properties) });
+        return text(`Saved ${els.length} elements to ${path}`);
+      } catch (e) { return fail(e); }
+    }),
+  );
+
+  server.registerTool(
+    "obsidian_write_mindmap",
+    {
+      description: "Generate a Mind Map Builder compatible mindmap (.excalidraw.md) from an indented markdown outline (first line = root). growthMode matches the Growth Strategy of the Mind Map Builder script and is stored on the root node, so the script can relayout or switch strategy later. Images: a line `![说明](vault/relative/path.png)` becomes an embedded image node (PNG/JPEG/GIF/WebP, size read from the file); attach interpretation points as its siblings or under a caption node. theme (fresh, or a Marp theme name such as campus) sets colours and the canvas background.",
+      inputSchema: { vault: vaultParam,
+        path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
+        outline: z.string().describe("Indented markdown outline, first line is the root, children indented with 2 spaces or a tab"),
+        growthMode: z.enum(GROWTH_MODES).optional().describe("Growth Strategy, default Right-Left"),
+        theme: z.string().optional().describe("'fresh' (default) or a Marp theme name from <vault>/theme/<name>.css (campus, blackboard, ink, swiss ...)"),
+        maxWidth: z.number().optional().describe("max text width of a node before wrapping (default 460)"),
+        imageWidth: z.number().optional().describe("display width of image nodes (default 640)"),
+        font: z.enum(["sans", "hand", "local"]).optional().describe("sans (default; Helvetica -> the OS system UI font, same family Obsidian uses by default), hand (Excalifont) or local (the plugin's Local Font setting, e.g. the font file you use as Obsidian's text font)"),
+        frames: z.boolean().optional().describe("add Slideshow marker frames: an overview + one 16:9 frame per branch (default true)"),
+        frameHeight: z.number().optional().describe("content height that fits one slide before a branch is split into several frames (default 760)"),
+        back: backParam,
+        properties: propsParam,
+        overwrite: z.boolean().optional(),
+      },
+    },
+    async ({ vault, path, outline, growthMode, theme, maxWidth, imageWidth, font, frames, frameHeight, back, properties, overwrite }): Promise<CallToolResult> => inVault(vault, async () => {
+      try {
+        const mode = growthMode ?? "Right-Left";
+        const th = themeOf(theme);
+        const tree = parseOutline(outline);
+        for (const n of imageNodes(tree)) {
+          const sz = await imageSize(n.img!.path);
+          if (!sz) throw new Error(`cannot read image size of ${n.img!.path} (use PNG, JPEG, GIF, WebP or a non-empty .excalidraw.md inside the vault)`);
+          n.img!.w = sz.w; n.img!.h = sz.h;
+        }
+        const els = buildMindmap(tree, mode, { theme: th, maxWidth, imageWidth, frames, frameHeight, fontFamily: { sans: 2, hand: 5, local: 4 }[font ?? "sans"] });
+        await writeDrawing(path, els, overwrite ?? false, "professional", { appState: { viewBackgroundColor: th.bg, theme: th.dark ? "dark" : "light", frameRendering: { enabled: true, clip: false, name: true, outline: true } }, body: back, properties: parseProps(properties) });
+        const nFrames = els.filter((e) => e.type === "frame").length;
+        return text(`Saved mindmap (${els.length} elements, ${mode}, theme ${th.name}${nFrames ? `, ${nFrames} slideshow frames` : ""}) to ${path}`);
+      } catch (e) { return fail(e); }
+    }),
+  );
+
+  server.registerTool(
+    "obsidian_write_slides",
+    {
+      description: "Generate a slide deck for the Obsidian Excalidraw Slideshow script: one 1920x1080 frame per slide, with order, presenter notes and bullet-by-bullet appear animations stored in the frame metadata the script reads. deck is a JSON string: {title?, titleFont?:'sans'|'hand'|'local', bodyFont?, progress?, slides:[{title, subtitle?, bullets?:string[], code?:string, codeTitle?, codeLang?, flow?:string[], kpis?:[{num,label}], vs?:{left:{title,items},right:{title,items}}, kv?:[[key,value]], image?:{path,caption?} (vault picture, shown with caption beside or above the bullets), mermaid?: string|{code,ratio?,caption?} (placeholder box keeping the code; the vault EA script \"Mermaid to Excalidraw\" turns it into native elements via the plugin, run it through the native CLI script command), callouts?:[{kind:'tip'|'warn'|'task'|'ask',text}], stage?:'b'|'o'|'p1'|'p2'|'p3'|'s', type?:'stage'|'divider', badge?, act?, notes?, layout?, animate?}]}. stage lights the BOPPPS six-dot progress and colours stage dividers. The first slide is a cover; slides without content become section dividers; a leading number in the title ('3 Foo') becomes a chapter badge. Bullets are auto-rendered as cards ('Head：body' lines), numbered steps (①/1. prefixes), a table (lines with →, HTTP methods get coloured pills) or list rows; override with layout. Code is syntax highlighted (java/ts/vue/yaml/json/http/sh/xml, auto-detected). flow items become a serpentine process diagram.",
+      inputSchema: { vault: vaultParam,
+        path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
+        deck: z.string().describe("JSON deck specification"),
+        theme: z.string().optional().describe("'fresh' (default), a Marp theme name from <vault>/theme/<name>.css (campus, campus43, blackboard, ink, swiss ...) or an absolute .css path. Colours, slide size and cover/stage styling follow the theme."),
+        back: backParam,
+        properties: propsParam,
+        overwrite: z.boolean().optional(),
+      },
+    },
+    async ({ vault, path, deck, theme, back, properties, overwrite }): Promise<CallToolResult> => inVault(vault, async () => {
+      try {
+        const spec = JSON.parse(deck);
+        if (!Array.isArray(spec.slides) || !spec.slides.length) throw new Error("deck.slides must be a non-empty array");
+        for (const sl of spec.slides) {
+          if (sl.image && (!sl.image.w || !sl.image.h)) {
+            const sz = await imageSize(sl.image.path);
+            if (!sz) throw new Error(`cannot read image size of ${sl.image.path} (use PNG, JPEG, GIF, WebP or a non-empty .excalidraw.md inside the vault)`);
+            sl.image.w = sz.w; sl.image.h = sz.h;
+          }
+        }
+        const els = buildSlides(spec, themeOf(theme));
+        // markdown side: one section per slide (embed + presenter notes), with a block id ^pNN to link from the lesson plan
+        const linkBase = path.replace(/\.md$/, "");
+        const frames = els.filter((e) => e.type === "frame").sort((a, b) => a.customData.slideshow.order - b.customData.slideshow.order);
+        const sections = frames.map((f, i) => {
+          const s = spec.slides[i] ?? {}, n = String(i + 1).padStart(2, "0");
+          const title = String(s.title ?? "").replace(/[#|[\]^:\\]/g, " ").replace(/\s+/g, " ").trim();
+          const talk = notesCallout(s.notes);
+          return `### P${n} ${title}\n\n![[${linkBase}#^frame=${f.id}|640]] ^p${n}\n${talk ? `\n${talk}` : ""}`;
+        });
+        const slidesBlock = `${SLIDES_START}\n## 幻灯片与讲稿\n\n${sections.join("\n")}\n${SLIDES_END}`;
+        const mapBody = (b: string) => `${b.replace(SLIDES_BLOCK, "\n\n").trim()}\n\n${slidesBlock}\n`.replace(/^\n+/, "");
+        await writeDrawing(path, els, overwrite ?? false, "professional", { body: back, properties: parseProps(properties), mapBody });
+        return text(`Saved ${spec.slides.length} slides (${els.length} elements) to ${path}. Run the Slideshow script in Obsidian to present.`);
+      } catch (e) { return fail(e); }
+    }),
+  );
+
+  server.registerTool(
+    "obsidian_write_template",
+    {
+      description: "Generate a Chinese-optimised diagram from a template into an Obsidian .excalidraw.md file. kinds: layers (分层架构), timeline (时间线), compare (左右对比), table (表格), tree (树状/组织结构), swimlane (泳道流程), quadrant (四象限), funnel (漏斗/金字塔), cycle (循环), cards (要点卡片), flow (流程图). spec is a JSON string whose shape depends on kind; call obsidian_template_help for the shapes.",
+      inputSchema: { vault: vaultParam,
+        path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
+        kind: z.enum(TEMPLATE_KINDS),
+        spec: z.string().describe("JSON spec for the chosen kind"),
+        font: z.enum(["sans", "hand"]).optional().describe("sans (default, system CJK sans, professional) or hand (Excalifont; Xiaolai when the plugin's Load Chinese fonts is on)"),
+        back: backParam,
+        properties: propsParam,
+        overwrite: z.boolean().optional(),
+      },
+    },
+    async ({ vault, path, kind, spec, font, back, properties, overwrite }): Promise<CallToolResult> => inVault(vault, async () => {
+      try {
+        const els = buildTemplate(kind, JSON.parse(spec), font ?? "sans");
+        await writeDrawing(path, els, overwrite ?? false, "professional", { body: back, properties: parseProps(properties) });
+        return text(`Saved ${kind} template (${els.length} elements) to ${path}`);
+      } catch (e) { return fail(e); }
+    }),
+  );
+
+  server.registerTool(
+    "obsidian_write_paper_board",
+    {
+      description: "Write a whole paper as ONE .excalidraw.md: a mind map whose leaf nodes ARE the visual zettel cards (framed 16:9 cards joined to the map by its branches; Slideshow plays the overview then every card in map order), and a markdown back (markdown view) with the paper notes plus one section per card that embeds the card picture and its explanation. board JSON: {key, title, series?, outline, cards:[card], growthMode?, cardScale?}. outline: indented markdown, first line = root, a line '@<card id>' places that card (each card at most once; unplaced cards go to a '其他' branch), [[links]] allowed. card: {id:'VIT-M01', title (assertion), type?: Q|C|M|D|E|R|A|K|I|Z (default from the id letter), subtitle?, visual?: V | [V, V], points?: [{n, text}|string] (<=5, n matches figure marks), takeaway?, source?: 'Fig.2 · §3.1', notes? (presenter notes), back? (markdown explanation, mermaid ok)}. V kinds: {kind:'figure', path:'Papers/X/assets/fig2.png', caption?, marks?:[{n,x,y}], boxes?:[{n?,x,y,w,h}]} (x/y/w/h are 0..1 fractions of the image) | {kind:'template', template:<obsidian_write_template kind>, spec} | {kind:'bars', title?, unit?, items:[{label,value,hl?}]} | {kind:'matrix', title?, rows?, cols?, values?:number[][], pattern?:'causal'|'diagonal'|'local'|'full', size?, showValues?} | {kind:'tensor', steps:[{label:'B×196×768', dims?, op?:'Linear'}]} | {kind:'stack', title?, input?, output?, repeat?:'×12', layers:[{label, kind?:'norm'|'attn'|'mlp'|'add'|'embed'|'head'|'other'}] (bottom first), residual?:[[fromLayer,toAddLayer]]} | {kind:'patches', rows, cols, label?, cls?} | {kind:'sketch', elements:[excalidraw elements]}.",
+      inputSchema: { vault: vaultParam,
+        path: z.string().describe("Vault-relative path ending in .excalidraw.md, e.g. Papers/VIT/VIT 卡片盒.excalidraw.md"),
+        board: z.string().describe("JSON board spec"),
+        back: z.string().optional().describe("Markdown paper notes put before the per-card sections of the back"),
+        properties: propsParam,
+        theme: z.string().optional().describe("same as obsidian_write_slides theme (colours only)"),
+        font: z.enum(["sans", "hand", "local"]).optional().describe("font of map and cards (default sans)"),
+        overwrite: z.boolean().optional(),
+      },
+    },
+    async ({ vault, path, board, back, properties, theme, font, overwrite }): Promise<CallToolResult> => inVault(vault, async () => {
+      try {
+        const b = JSON.parse(board);
+        if (!b || !b.outline || !Array.isArray(b.cards) || !b.cards.length) throw new Error("board needs outline and a non-empty cards array");
+        const th = themeOf(theme), fontId = { sans: 2, hand: 5, local: 4 }[font ?? "sans"];
+        const specs: CardSpec[] = b.cards;
+        const seen = new Set<string>();
+        for (const c of specs) {
+          if (seen.has(c.id)) throw new Error(`duplicate card id ${c.id}`);
+          seen.add(c.id);
+          for (const v of c.visual ? (Array.isArray(c.visual) ? c.visual : [c.visual]) : []) {
+            if (v.kind === "figure" && (!v.w || !v.h)) {
+              const sz = await imageSize(v.path);
+              if (!sz) throw new Error(`card ${c.id}: cannot read image size of ${v.path} (PNG, JPEG, GIF, WebP or .excalidraw.md inside the vault)`);
+              v.w = sz.w; v.h = sz.h;
+            }
+          }
+        }
+        const scale = b.cardScale ?? 0.6, linkBase = path.replace(/\.md$/, "");
+        const built = new Map(specs.map((c, i) => [c.id, { spec: c, card: placeableCard(c, th, fontId, b.series ?? b.key, scale, i) }]));
+        for (const { card } of built.values()) {
+          const bg = card.els.find((e) => e.id === card.bgId);
+          bg.link = `[[${linkBase}#${card.heading}]]`; // jump to this card's back
+        }
+        const tree = parseOutline(b.outline);
+        const placed: string[] = [];
+        const walk = (n: any) => { if (n.card) { if (placed.includes(n.card)) throw new Error(`card @${n.card} placed twice`); placed.push(n.card); } (n.c ?? []).forEach(walk); };
+        walk(tree);
+        const rest = specs.filter((c) => !placed.includes(c.id));
+        if (rest.length) (tree.c ??= []).push({ t: "其他", c: rest.map((c) => ({ t: c.id, card: c.id })) });
+        const order = [...placed, ...rest.map((c) => c.id)];
+        const els = buildMindmap(tree, b.growthMode ?? "Right-Left", {
+          theme: th, fontFamily: fontId, frames: true, maxWidth: 420,
+          cards: new Map([...built].map(([k, v]) => [k, v.card])),
+        });
+        const sections = order.map((id) => {
+          const { spec, card } = built.get(id)!;
+          const more = (spec.back ?? "").trim();
+          const talk = notesCallout(spec.notes);
+          return `### ${card.heading}\n\n![[${linkBase}#^frame=${card.frameId}|900]]\n${talk ? `\n${talk}` : ""}${more ? `\n${more}\n` : ""}`;
+        });
+        // the literature note is the part above "## 卡片"; when back is omitted on overwrite, keep the existing one
+        const mapBody = (cur: string) => `${(cur.split(/^## 卡片\s*$/m)[0].trim() || `# ${b.title ?? b.key}`)}\n\n## 卡片\n\n${sections.join("\n")}`;
+        await writeDrawing(path, els, overwrite ?? false, "professional", {
+          body: back, mapBody, properties: parseProps(properties),
+          appState: { viewBackgroundColor: th.bg, theme: th.dark ? "dark" : "light", frameRendering: { enabled: true, clip: false, name: true, outline: true } },
+        });
+        return text(`Saved board ${b.key ?? ""}: ${specs.length} cards (${rest.length} unplaced → 其他), ${els.length} elements, to ${path}. Slideshow: overview + cards in map order. Card order: ${order.join(", ")}`);
+      } catch (e) { return fail(e); }
+    }),
+  );
+
+  server.registerTool(
+    "obsidian_write_card",
+    {
+      description: "Write one zettel card as a single .excalidraw.md: the front (Excalidraw view) is one 1920x1080 slide, optionally with a hand-drawn sketch beside it; the back (markdown view, toggle with 'Toggle between Excalidraw and Markdown mode') is the given markdown. card is ONE slide of the obsidian_write_slides schema ({title, subtitle?, bullets?, flow?, kv?, vs?, kpis?, code?, image?, callouts?, notes?, layout?}); it is never rendered as a cover. image.path may be a PNG/JPEG/GIF/WebP or another .excalidraw.md (embedded drawing). sketch is a JSON array of standard Excalidraw elements in their own coordinates (origin at the sketch's top-left), placed to the right of the slide; unset roughness/fontFamily default to hand-drawn (1 / Excalifont).",
+      inputSchema: { vault: vaultParam,
+        path: z.string().describe("Vault-relative path ending in .excalidraw.md"),
+        card: z.string().describe("JSON of a single slide spec"),
+        back: backParam,
+        properties: propsParam,
+        cardId: z.string().optional().describe("short id shown in the footer instead of the page counter, e.g. 'LLM-ATTN-03'"),
+        series: z.string().optional().describe("footer text on the left, usually the paper short title"),
+        sketch: z.string().optional().describe("JSON array of Excalidraw elements drawn next to the slide"),
+        theme: z.string().optional().describe("same as obsidian_write_slides theme"),
+        font: z.enum(["sans", "hand", "local"]).optional().describe("slide font (default sans)"),
+        overwrite: z.boolean().optional(),
+      },
+    },
+    async ({ vault, path, card, back, properties, cardId, series, sketch, theme, font, overwrite }): Promise<CallToolResult> => inVault(vault, async () => {
+      try {
+        const slide = JSON.parse(card);
+        if (!slide || typeof slide !== "object" || Array.isArray(slide) || !slide.title) throw new Error("card must be a JSON object with a title");
+        if (slide.image && (!slide.image.w || !slide.image.h)) {
+          const sz = await imageSize(slide.image.path);
+          if (!sz) throw new Error(`cannot read image size of ${slide.image.path} (use PNG, JPEG, GIF, WebP or a non-empty .excalidraw.md inside the vault)`);
+          slide.image.w = sz.w; slide.image.h = sz.h;
+        }
+        const th = themeOf(theme);
+        const els = buildSlides({ title: series, slides: [slide], firstIsCover: false, pageLabel: cardId ?? "", progress: false, titleFont: font, bodyFont: font }, th);
+        let nSketch = 0;
+        if (sketch) {
+          const sk = JSON.parse(sketch);
+          if (!Array.isArray(sk)) throw new Error("sketch must be a JSON array of elements");
+          const ox = th.w + 160;
+          for (const e of sk) {
+            const o = { roughness: 1, ...e, x: (e.x ?? 0) + ox, y: e.y ?? 0 };
+            if (o.type === "text" && o.fontFamily === undefined) o.fontFamily = 5;
+            els.push(o);
+          }
+          nSketch = sk.length;
+        }
+        await writeDrawing(path, els, overwrite ?? false, "professional", { body: back, properties: parseProps(properties) });
+        return text(`Saved card ${cardId ?? ""} (${els.length} elements${nSketch ? `, ${nSketch} sketch` : ""}${back ? ", with back" : ""}) to ${path}`);
+      } catch (e) { return fail(e); }
+    }),
+  );
+
+  server.registerTool(
+    "obsidian_install_vault_files",
+    {
+      description: "Copy the vault-side files this plugin relies on into an Obsidian vault: the EA script 'Mermaid to Excalidraw' (Excalidraw/Scripts/, converts slide mermaid placeholders) and the slide theme CSS (theme/*.css, also usable as Marp themes). Existing files are never overwritten. Without apply:true it only reports the plan; show it to the user and get approval before applying.",
+      inputSchema: {
+        vault: vaultParam,
+        items: z.array(z.enum(["scripts", "themes"])).optional().describe("default both"),
+        apply: z.boolean().optional().describe("false (default) = dry run: list what would be written"),
+      },
+    },
+    async ({ vault, items, apply }): Promise<CallToolResult> => inVault(vault, async () => {
+      try {
+        const root = getVaultRoot(), want = new Set(items ?? ["scripts", "themes"]);
+        const plan: { from: string; to: string }[] = [];
+        const add = async (dir: string, filter: (f: string) => boolean, dest: string) => {
+          for (const f of (await fs.readdir(dir)).filter(filter).sort()) plan.push({ from: path.join(dir, f), to: `${dest}/${f}` });
+        };
+        if (want.has("scripts")) await add(BUNDLED_SCRIPTS, (f) => f.endsWith(".md"), "Excalidraw/Scripts");
+        if (want.has("themes")) await add(BUNDLED_THEMES, (f) => f.endsWith(".css"), "theme");
+        const rows: string[] = [];
+        for (const { from, to } of plan) {
+          const target = path.join(root, to), src = await fs.readFile(from);
+          const cur = await fs.readFile(target).catch(() => null);
+          if (cur) { rows.push(`${cur.equals(src) ? "same   " : "differs"} ${to} (kept)`); continue; }
+          if (apply) {
+            await fs.mkdir(path.dirname(target), { recursive: true });
+            await fs.writeFile(target, src, { flag: "wx" });
+            rows.push(`written ${to}`);
+          } else rows.push(`new     ${to}`);
+        }
+        return text(`${apply ? "Installed into" : "Plan for"} ${root}:\n${rows.join("\n")}${apply ? "" : "\nCall again with apply:true to write the new files."}`);
+      } catch (e) { return fail(e); }
+    }),
+  );
+
+  server.registerTool(
+    "obsidian_template_help",
+    {
+      description: "Show the JSON spec shape of every obsidian_write_template kind, with a minimal example.",
+      annotations: { readOnlyHint: true },
+    },
+    async (): Promise<CallToolResult> => text(TEMPLATE_HELP),
+  );
+
   // ============================================================
   // Tool 2: create_view (Excalidraw SVG)
   // ============================================================
@@ -681,6 +1026,20 @@ However, if the user wants to edit something on this diagram "${checkpointId}", 
     },
   );
 }
+
+const TEMPLATE_HELP = `obsidian_write_template specs (all accept optional title, subtitle):
+layers   {layers:[{name, items:[str]}]}                     分层架构图
+timeline {events:[{time, title, desc?}]}                    时间线，上下交错
+compare  {left:{title,items:[str]}, right:{title,items:[str]}}  左右对比 + VS
+table    {columns:[str], rows:[[str]]}                      表头 + 斑马纹表格
+tree     {root:{t, c?:[{t,c?}]}}                            树状 / 组织结构（自上而下）
+swimlane {lanes:[str], steps:[{lane:str|index, text, decision?}]}  泳道流程，按顺序连线
+quadrant {xAxis:[low,high], yAxis:[low,high], quadrants:[左上,右上,左下,右下], items:[{text,x:0-1,y:0-1}]}
+funnel   {levels:[{text,note?}], shape?:"funnel"|"pyramid"} 漏斗 / 金字塔
+cycle    {steps:[str] (3+), center?:str}                    环形循环
+cards    {cards:[{title, body?}], columns?}                 编号要点卡片
+flow     {steps:[str | {text, type?:"start"|"end"|"process"|"decision"}], columns?}  流程图（蛇形换行）
+Fonts: font "sans" (default) or "hand".`;
 
 /**
  * Creates a new MCP server instance with Excalidraw drawing tools.

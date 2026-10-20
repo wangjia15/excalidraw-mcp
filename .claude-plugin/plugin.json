@@ -1,0 +1,33 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "excalidraw-obsidian",
+  "version": "0.4.0",
+  "description": "Excalidraw drawings in Obsidian vaults: diagram templates, mind maps, slide decks (BOPPPS, code, Mermaid), paper card boards, plus the paper-zettel and boppps-lesson skills",
+  "author": {
+    "name": "wangjia15"
+  },
+  "homepage": "https://github.com/wangjia15/excalidraw-mcp",
+  "repository": "https://github.com/wangjia15/excalidraw-mcp",
+  "license": "MIT",
+  "keywords": [
+    "excalidraw",
+    "obsidian",
+    "mcp",
+    "slides",
+    "mindmap",
+    "zettelkasten",
+    "boppps"
+  ],
+  "mcpServers": {
+    "excalidraw-obsidian": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/dist/index.js",
+        "--stdio"
+      ],
+      "env": {
+        "OBSIDIAN_VAULT": "${OBSIDIAN_VAULT:-}"
+      }
+    }
+  }
+}

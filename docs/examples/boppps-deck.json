@@ -1,0 +1,16 @@
+{
+  "title": "Spring MVC 请求处理流程",
+  "slides": [
+    { "title": "Spring MVC 请求处理流程", "subtitle": "第 5 讲 · Spring Boot 4 · 45 分钟", "notes": "同学们好，今天我们一起看一次 HTTP 请求在 Spring MVC 里走过的完整路径。" },
+    { "type": "stage", "stage": "b", "title": "导入", "badge": "4 分钟", "notes": "先用一个小实验开场，4 分钟。" },
+    { "stage": "b", "title": "点一下按钮，后台发生了什么？", "callouts": [{"kind": "ask", "text": "浏览器发出的请求，是怎么找到你写的那个方法的？"}], "notes": "请大家打开浏览器开发者工具的 Network 面板，点一下页面上的按钮，看看发出了哪个请求。\n**提问**：这个请求到了服务器以后，是怎么找到我们写的那个 Java 方法的？先别急着回答，带着这个问题听下去。" },
+    { "type": "stage", "stage": "o", "title": "学习目标", "badge": "1 分钟", "notes": "先明确这节课要达成什么。" },
+    { "stage": "o", "title": "本节课结束后你能", "bullets": ["① 画出请求经过 DispatcherServlet 的 5 个步骤", "② 写出一个带路径参数的 Controller", "③ 根据日志判断 404 的原因"], "notes": "这节课结束时，希望大家能做到三件事：\n① 能画出请求经过 DispatcherServlet 的 5 个步骤；② 能自己写一个带路径参数的 Controller；③ 看到 404 时能根据日志说出原因。\n最后的小测就按这三条来考。" },
+    { "type": "stage", "stage": "p2", "title": "参与式学习", "badge": "28 分钟", "notes": "进入主体部分，28 分钟，边讲边动手。" },
+    { "stage": "p2", "title": "1 DispatcherServlet 统一分发请求", "mermaid": {"code": "flowchart LR\n  A[浏览器] -->|HTTP 请求| B[DispatcherServlet]\n  B --> C{HandlerMapping}\n  C --> D[Controller]\n  D --> E[视图渲染]", "caption": "一次请求的路径"}, "bullets": ["前端控制器：所有请求先到这里", "映射器：按 URL 找到处理器"], "notes": "看这张图：所有请求都先到 DispatcherServlet，它是前端控制器，只负责分发。\n它问 HandlerMapping\"这个 URL 归谁管\"，拿到 Controller 后调用它，最后渲染视图或写回 JSON。\n**过渡**：知道了路径，我们就自己写一个 Controller 放到这条路上。" },
+    { "stage": "p2", "title": "2 写一个最小 Controller", "codeLang": "java", "code": "@RestController\nclass HelloController {\n  @GetMapping(\"/hi/{name}\") // ①\n  String hi(@PathVariable String name) { // ②\n    return \"hi \" + name;\n  }\n}", "bullets": ["① 映射 GET /hi/{name}", "② 路径变量绑定到参数"], "notes": "这是最小的 Controller。① `@GetMapping(\"/hi/{name}\")` 把 GET /hi/xxx 映射到这个方法；② `@PathVariable` 把路径里的 name 取出来。\n现场演示：启动应用，访问 /hi/tom，看到 hi tom。\n请大家花 2 分钟照着敲一遍并跑通。" },
+    { "stage": "p2", "title": "配对讨论：请求为什么 404？", "act": "配对讨论 · 3 分钟", "vs": {"left": {"title": "能访问", "items": ["/hi/tom"]}, "right": {"title": "404", "items": ["/hi", "/Hi/tom"]}}, "callouts": [{"kind": "task", "text": "对照映射规则，说出每个 404 的原因"}], "notes": "配对讨论 3 分钟：左边能访问，右边两个都是 404，请对照刚才的映射规则说出原因。\n巡视看：有没有人注意到大小写。\n**答案**：`/hi` 缺少 name 段，匹配不到 `/hi/{name}`；`/Hi/tom` 路径区分大小写。\n讲评时打开日志，指出 `No mapping for GET /hi` 这一行。" },
+    { "type": "stage", "stage": "s", "title": "总结", "badge": "3 分钟", "notes": "最后 3 分钟总结。" },
+    { "stage": "s", "title": "一句话：映射找方法，适配调方法", "flow": ["请求", "DispatcherServlet", "HandlerMapping", "HandlerAdapter", "Controller", "响应"], "notes": "一句话记住：HandlerMapping 负责**找**方法，HandlerAdapter 负责**调**方法。\n沿着这条线回顾一遍：请求 → DispatcherServlet → 找处理器 → 适配调用 → Controller → 响应。\n课后作业：给 Controller 加一个带查询参数的接口，并故意制造一次 404，记录日志。" }
+  ]
+}

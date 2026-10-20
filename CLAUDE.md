@@ -14,6 +14,12 @@ src/dev.tsx        → Dev entry point: mock app + sample elements + control pan
 src/dev-mock.ts    → Mock MCP App with event simulation (sendToolInput, streamElements, etc.)
 index-dev.html     → Dev HTML entry (served by vite dev server)
 vite.config.dev.ts → Dev-only vite config (resolves from node_modules, no esm.sh externals)
+obsidian.ts        → .excalidraw.md read/write, id normalisation, vault path guard, embedded images
+mindmap.ts         → XMind-style mindmaps + Slideshow marker frames
+slides.ts          → slide layout engine (themes, images, BOPPPS elements)
+slide-theme.ts     → Marp CSS theme loader
+highlight.ts       → syntax highlighting layers for code slides
+templates.ts       → 11 Chinese-tuned diagram templates
 ```
 
 ## Tools
@@ -203,3 +209,29 @@ grep "Excalidraw" ~/Library/Logs/Claude/claude.ai-web.log | tail -20
 - The `.SVGLayer` div is not used for rendering but takes layout space — safe to `display: none`
 - morphdom is essential — without it, replacing innerHTML re-triggers all animations on every update
 - `ReactDOM.render()` per update remounts the tree and kills animations — use `createRoot()` once + `useState` if adding React components
+
+## Obsidian Excalidraw plugin support
+
+`src/obsidian.ts` + tools `obsidian_list_drawings`, `obsidian_read_drawing`, `obsidian_write_drawing` read/write `.excalidraw.md` files (compressed-json format of obsidian-excalidraw-plugin) in the vault given by the tool's optional `vault` argument (absolute path of a folder containing `.obsidian/`, scoped per call with AsyncLocalStorage) or else the `OBSIDIAN_VAULT` env var. Paths are vault-relative and confined to the vault. Read output is a plain elements array usable as `create_view` input.
+
+Set `EXCALIDRAW_LIB=<path to a local excalidraw package>` at build time (e.g. `obsidian-excalidraw-plugin/node_modules/@zsviczian/excalidraw`, after `npm install` there) to bundle that fork into the widget instead of loading the official build from esm.sh (see `vite.config.ts`). The plugin repo currently has no `node_modules`, so this path is untested.
+
+`obsidian_write_drawing` applies a default "professional" template (`style: "professional"`, overridable with `"none"`): `roughness: 0`, `strokeWidth: 1.5`, text `fontFamily: 2` (Helvetica), and matching `appState.currentItem*` defaults for shapes the user draws later. Properties set explicitly on an element win.
+
+`obsidian_write_mindmap` (`src/mindmap.ts`) builds a Mind Map Builder compatible map from an indented markdown outline. `growthMode` takes the script's Growth Strategy values (`Radial`, `Right-facing`, `Left-facing`, `Right-Left`, `Up-facing`, `Down-facing`, `Up-Down`) and is stored in the root node's `customData.growthMode`; branch arrows carry `customData.isBranch`, nodes `customData.mindmapOrder`. The element model was reverse-engineered from the script and is untested inside Obsidian.
+
+`obsidian_write_slides` (`src/slides.ts`) generates a deck for the Slideshow script: one 1920x1080 frame per slide (frames follow their children in the array), `frame.customData.slideshow = {schemaVersion: 2, kind: "frame", order, notes?, animation?: {steps}}`. Bullets get `fade`/`advance` steps. Element ids are generated as valid 8-char plugin ids because animation targets reference them. Untested inside Obsidian.
+
+Slide layouts (`src/slides.ts`) are content driven: cover, section divider, cards / numbered steps / table / list rows for bullets, serpentine process flows, and One Dark style code windows. Highlighting (`src/highlight.ts`) works by emitting one monospace text layer per colour, every non-matching character blanked with spaces, so the layers overlay on one grid.
+
+`obsidian_write_template` (`src/templates.ts`) draws 11 Chinese-tuned diagram kinds (layers, timeline, compare, table, tree, swimlane, quadrant, funnel, cycle, cards, flow); shapes use bound text and arrows are bound to shapes. User manual: `docs/使用手册.md`.
+
+Slide themes (`src/slide-theme.ts`): `obsidian_write_slides` takes `theme` = built-in `fresh`, or a Marp theme CSS (`<vault>/theme/<name>.css`); palette variables in `:root` and the `section` size are read from the CSS. Campus-like themes use the formal cover/stage style. BOPPPS slide fields: `stage`, `type`, `badge`, `act`, `callouts`, `kpis`, `vs`, `kv`.
+
+Mindmaps support image nodes (`![alt](vault/path.png)` in the outline): `type: "image"` elements with `fileId = sha1(path)` and `customData.vaultPath`; `buildExcalidrawMd` lists them under `## Embedded Files` as `<fileId>: [[path]]`. Node text wraps at `maxWidth`; `theme` colours the map (root = accent, level-1 text = branch colour, deeper text = ink).
+
+Slides accept `image: {path, caption?}` (vault picture; the MCP tool fills in w/h from the file). Wide images (>2.2:1) go above the bullets, others beside them; images are embedded via `customData.vaultPath` + `fileId = sha1(path)` like mindmap image nodes.
+
+Mindmaps are XMind styled (capsule root, filled level-1 boxes, tinted level-2 boxes, underlined plain text below, tapering curves). With `frames` (default) the result also carries Slideshow marker frames (no children, `frameRendering.clip=false`): an overview + one 16:9 frame per branch, long branches split by `frameHeight`; notes = branch outline. `font`: sans (2) | hand (5) | local (4, plugin Local Font). Right-Left splits branches by measured height.
+
+Claude Code plugin: `.claude-plugin/plugin.json` (MCP server inline, runs `${CLAUDE_PLUGIN_ROOT}/dist/index.js`) and `.claude-plugin/marketplace.json` (the repo is its own marketplace). `dist/index.js` and `dist/mcp-app.html` are committed because plugins are not built on install: rebuild (`PATH="$PWD/node_modules/.bin:$PATH" node scripts/build.mjs`) and commit them together with any `src/` change. Skills live in `skills/` (`paper-zettel`, `boppps-lesson`); slide theme CSS ships in `skills/boppps-lesson/themes/` as the fallback for themes missing from `<vault>/theme/`, and `obsidian_install_vault_files` copies those themes and the `Mermaid to Excalidraw` EA script into a vault (dry run by default, never overwrites). Validate with `claude plugin validate .`.

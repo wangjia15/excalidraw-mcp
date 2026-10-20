@@ -1,0 +1,28 @@
+{
+  "key": "VIT",
+  "title": "ViT：An Image is Worth 16x16 Words",
+  "series": "ViT · ICLR 2021",
+  "outline": "ViT 精读\n  问题\n    @VIT-Q01\n  方法\n    @VIT-M01\n    @VIT-M02\n  结果\n    @VIT-R01",
+  "growthMode": "Right-Left",
+  "cardScale": 0.6,
+  "cards": [
+    { "id": "VIT-Q01", "title": "卷积的归纳偏置是视觉必需品吗？",
+      "visual": { "kind": "template", "template": "compare", "spec": { "left": { "title": "CNN", "items": ["局部性", "平移等变"] }, "right": { "title": "Transformer", "items": ["全局注意力", "几乎无偏置"] } } },
+      "points": ["CNN 自带局部性与平移等变", "Transformer 只靠数据学习结构"], "takeaway": "数据够大时偏置可以学出来",
+      "back": "> [!abstract] 一句话\n> 把图像当作 token 序列，看纯 Transformer 能否替代 CNN。" },
+    { "id": "VIT-M01", "title": "把图像切成 16×16 patch 当作词",
+      "visual": [ { "kind": "patches", "rows": 4, "cols": 4, "cls": true, "label": "N = HW/P² 个 token" },
+                  { "kind": "tensor", "steps": [ { "label": "224×224×3", "dims": [224, 224, 3] }, { "label": "196×768", "dims": [196, 768], "op": "reshape + Linear" } ] } ],
+      "points": [ { "n": 1, "text": "224/16 = 14，共 196 个 patch" }, { "n": 2, "text": "线性投影到 D = 768" } ],
+      "takeaway": "patch 就是视觉的词", "source": "§3.1 · Eq.(1)" },
+    { "id": "VIT-M02", "title": "标准 Transformer 编码器，不改结构",
+      "visual": { "kind": "stack", "title": "Encoder Block", "input": "z₀", "output": "z_L", "repeat": "×L",
+                  "layers": [ { "label": "LayerNorm", "kind": "norm" }, { "label": "MHA", "kind": "attn" }, { "label": "+", "kind": "add" },
+                              { "label": "LayerNorm", "kind": "norm" }, { "label": "MLP", "kind": "mlp" }, { "label": "+", "kind": "add" } ],
+                  "residual": [[0, 2], [3, 5]] },
+      "points": ["Pre-LN：先归一化再注意力", "两处残差连接"], "takeaway": "架构几乎照搬 NLP" },
+    { "id": "VIT-R01", "title": "大规模预训练后超过 BiT",
+      "visual": { "kind": "bars", "title": "ImageNet top-1", "unit": "%", "items": [ { "label": "BiT-L", "value": 87.54 }, { "label": "ViT-H/14", "value": 88.55, "hl": true } ] },
+      "points": ["JFT-300M 预训练", "计算量更少"], "takeaway": "规模弥补归纳偏置", "source": "Table 2" }
+  ]
+}

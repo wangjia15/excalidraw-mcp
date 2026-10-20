@@ -1,0 +1,14 @@
+{
+  "name": "wangjia15-excalidraw",
+  "description": "Excalidraw + Obsidian plugins by wangjia15",
+  "owner": {
+    "name": "wangjia15"
+  },
+  "plugins": [
+    {
+      "name": "excalidraw-obsidian",
+      "source": "./",
+      "description": "Excalidraw MCP for Obsidian vaults with the paper-zettel and boppps-lesson skills"
+    }
+  ]
+}
