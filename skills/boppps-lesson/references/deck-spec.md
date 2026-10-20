@@ -43,10 +43,19 @@
 | `image` | `{path, caption}`，vault 内图片 |
 | `mermaid` | 字符串，或 `{code, ratio?, caption?}`；与 `image` 二选一 |
 | `callouts` | `[{kind:"tip"|"warn"|"task"|"ask", text}]`，最多 2 条 |
-| `notes` | 讲稿/答案（Slideshow 演讲者备注） |
+| `notes` | **讲稿**（必填，见下）：Slideshow 演讲者备注，同时写到背面该页的"讲稿"callout |
 | `animate` | 默认 true，逐条出现；分析整页图时设 false |
 
 每页内容不要堆：图（mermaid/image）+ ≤3 条 bullets，或 code + ≤3 条 bullets，或单独 vs/kpis/flow。
+
+## 讲稿（`notes`）
+
+背面会为每页自动生成一节：幻灯片嵌入 + `notes` 讲稿（见 [lesson-plan.md](lesson-plan.md)），所以讲稿就是教案里这一页的"怎么讲"：
+
+- **每张内容页和活动页都必须有 `notes`**；封面、环节分隔页写一两句过渡语（"接下来我们先做个小测……"）。
+- 写成老师能照着说的口语，按讲的顺序：开场一句 → 逐条讲要点（与 bullets/代码 ① 编号对应）→ 提问或过渡到下一页。一般 80–200 字，约等于这页的讲解时长。
+- 活动页写清楚指令、时间、巡视看什么、预期答案和常见错误；前测/后测页写答案和讲评要点（答案只放这里，不放正面）。
+- 用 `\n` 分段；可用 Markdown（加粗、`代码`），不要用标题行。
 
 ## Mermaid
 

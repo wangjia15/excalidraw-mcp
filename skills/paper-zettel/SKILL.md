@@ -9,7 +9,7 @@ description: 用卡片盒笔记法精读大语言模型（LLM）与计算机视�
 
 - **Excalidraw 面**：思维导图。根节点是论文，一级分支是问题/方法/结果/批判…，**叶子就是卡片本身**（16:9 带框卡片，分支线直接连到卡片）。Slideshow 先放全图概览帧，再按导图顺序逐张放卡片。
 - **卡片正面**以图形为主：标注过的论文原图（红色编号圈和虚线框，对应右侧编号要点）、概念图（张量形状、注意力矩阵、模块堆叠、patch 网格、柱状图、模板图、手绘草图）。文字只有断言标题、≤5 条编号要点和一句结论。
-- **Markdown 面**（翻面：命令面板 `Excalidraw: Toggle between Excalidraw and Markdown mode`）：文献笔记，然后 `## 卡片` 下每张卡一节（`### <ID> <标题>`、嵌入该卡帧图、背面解读）。点卡片背景会跳到它的那一节。
+- **Markdown 面**（翻面：命令面板 `Excalidraw: Toggle between Excalidraw and Markdown mode`）：文献笔记，然后 `## 卡片` 下每张卡一节（`### <ID> <标题>`、嵌入该卡帧图、`> [!note] 讲稿`（卡片 `notes`）、背面解读），由工具按 board 自动生成。点卡片背景会跳到它的那一节。
 - 跨论文的永久卡放 `Zettel/`，每张一个文件（`obsidian_write_card`）。
 
 ## 0. 环境（每次开始先确认）
@@ -36,7 +36,7 @@ description: 用卡片盒笔记法精读大语言模型（LLM）与计算机视�
 3. **截取图表**：`pdf_figures.py auto <pdf> <VAULT>/Papers/<KEY>/assets`，得到 `fig<N>.png`、`tab<N>.png` 和 `figures.json`。**每张要用的图都用 Read 看一遍**。输出里标 `MISSING` 的（例如正文环绕的侧边图）或截错的，用 `pages` 渲染整页，看图估计坐标后用 `crop` 补截。见 [references/tools.md](references/tools.md#截取论文图表)。
 4. **三遍阅读 + 拆卡**：按 [references/reading-method.md](references/reading-method.md)。LLM 和 CV 论文各有一份精读清单，清单里的每个问题都要有着落：要么是一张卡，要么在文献笔记里写明"论文未说明"。
 5. **设计卡片**：每张卡先想"用什么图讲清楚"，再写要点。论文的关键图表都要进卡片并解读：用 `marks`/`boxes` 圈出要看的位置，编号与要点一一对应。规格见 [references/card-spec.md](references/card-spec.md)。
-6. **写卡片盒**：一次 `obsidian_write_paper_board` 写入全部卡片、导图和 Markdown 面。重新生成时用 `overwrite:true`；不传 `back`/`properties` 时保留原值。
+6. **写卡片盒**：一次 `obsidian_write_paper_board` 写入全部卡片、导图和 Markdown 面。每张卡都写 `notes` 讲稿（[card-spec.md](references/card-spec.md)）。重新生成时用 `overwrite:true`；不传 `back` 时 `## 卡片` 上面的文献笔记保留，卡片各节按新 board 重新生成；不传 `properties` 时保留原值。
 7. **永久卡**：跨论文复用的概念（如 KV Cache、Patch Embedding、RoPE、DPO 损失）放 `Zettel/`。先用 `obsidian_list_drawings dir="Zettel"` 查重；已有的就链接过去，并用 `obsidian_read_drawing withBack:true` 读出背面，追加"在 [[KEY]] 中的用法"后写回。没有的用 `obsidian_write_card` 新建。卡片盒里用 `[[Zettel/…|…]]` 链接。
 8. **验证**：用 CLI 导出全图和至少 3 张代表卡（含一张论文原图卡）的 PNG，用 Read 看：文字溢出或重叠、标注圈是否落在正确位置、原图是否显示、图形是否太小。见 [references/tools.md](references/tools.md#验图)。
 9. **精修**：标注位置不准、图太小这类问题，改 board JSON 后用 `overwrite:true` 重写。用户在 Obsidian 里手改过的，用 CLI `apply` 做局部修改，不要再覆盖整个文件。

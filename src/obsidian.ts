@@ -232,8 +232,9 @@ async function drawingSize(rel: string): Promise<{ w: number; h: number } | null
 /**
  * `body` is the markdown kept above `# Excalidraw Data` (the back of a card) and `properties` the frontmatter;
  * when overwriting, whichever of the two is not given is kept from the existing file.
+ * `mapBody` then rewrites the resolved body (e.g. to regenerate a tool-owned section with the new frame ids).
  */
-export async function writeDrawing(rel: string, elements: any[], overwrite: boolean, style: "professional" | "none" = "professional", extra: { appState?: Record<string, any>; body?: string; properties?: Record<string, unknown> } = {}) {
+export async function writeDrawing(rel: string, elements: any[], overwrite: boolean, style: "professional" | "none" = "professional", extra: { appState?: Record<string, any>; body?: string; properties?: Record<string, unknown>; mapBody?: (body: string) => string } = {}) {
   // the plugin does not restore a missing angle: ellipse bounds become NaN, so they vanish and break export
   elements = normalizeIds(elements).map((e) => (Number.isFinite(e.angle) ? e : { ...e, angle: 0 }));
   if (style === "professional") elements = applyProfessionalStyle(elements);
@@ -255,6 +256,7 @@ export async function writeDrawing(rel: string, elements: any[], overwrite: bool
     if (e.code !== "ENOENT" && !String(e.message).includes("No ## Drawing")) throw e;
   }
   if (extra.properties) frontmatter = buildFrontmatter(extra.properties);
+  if (extra.mapBody) body = extra.mapBody(body ?? "");
   if (extra.appState) scene.appState = { ...scene.appState, ...extra.appState };
   await fs.mkdir(path.dirname(full), { recursive: true });
   await fs.writeFile(full, buildExcalidrawMd(scene, frontmatter, body), "utf8");

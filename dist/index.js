@@ -63324,6 +63324,8 @@ async function writeDrawing(rel, elements, overwrite, style = "professional", ex
   }
   if (extra.properties)
     frontmatter = buildFrontmatter(extra.properties);
+  if (extra.mapBody)
+    body = extra.mapBody(body ?? "");
   if (extra.appState)
     scene.appState = { ...scene.appState, ...extra.appState };
   await fs3.mkdir(path3.dirname(full), { recursive: true });
@@ -64178,6 +64180,13 @@ function registerTools(server, distDir, store) {
   const vaultParam = exports_external.string().optional().describe("Absolute path of the Obsidian vault folder (must contain .obsidian/). Default: the OBSIDIAN_VAULT the server was started with.");
   const inVault = (vault, fn2) => withVault(vault, fn2).catch(fail);
   const themeOf = (theme) => loadTheme(theme, getVaultRoot(), BUNDLED_THEMES);
+  const notesCallout = (notes) => notes?.trim() ? `> [!note] 讲稿
+${notes.trim().split(/\r?\n/).map((l) => `> ${l}`).join(`
+`)}
+` : "";
+  const SLIDES_START = "%% slides:start · obsidian_write_slides 生成：每页的嵌入和讲稿，重写课件时整段更新，请不要手改 %%";
+  const SLIDES_END = "%% slides:end %%";
+  const SLIDES_BLOCK = /\n*%% slides:start[^\n]*%%[\s\S]*?%% slides:end %%\n*/;
   server.registerTool("obsidian_list_drawings", {
     description: "List .excalidraw.md drawings in the Obsidian vault (set via OBSIDIAN_VAULT).",
     inputSchema: { vault: vaultParam, dir: exports_external.string().optional().describe("Vault-relative folder, default vault root") },
@@ -64291,7 +64300,31 @@ function registerTools(server, distDir, store) {
         }
       }
       const els = buildSlides(spec, themeOf(theme));
-      await writeDrawing(path5, els, overwrite ?? false, "professional", { body: back, properties: parseProps(properties) });
+      const linkBase = path5.replace(/\.md$/, "");
+      const frames = els.filter((e) => e.type === "frame").sort((a2, b2) => a2.customData.slideshow.order - b2.customData.slideshow.order);
+      const sections = frames.map((f2, i) => {
+        const s2 = spec.slides[i] ?? {}, n = String(i + 1).padStart(2, "0");
+        const title = String(s2.title ?? "").replace(/[#|[\]^:\\]/g, " ").replace(/\s+/g, " ").trim();
+        const talk = notesCallout(s2.notes);
+        return `### P${n} ${title}
+
+![[${linkBase}#^frame=${f2.id}|640]] ^p${n}
+${talk ? `
+${talk}` : ""}`;
+      });
+      const slidesBlock = `${SLIDES_START}
+## 幻灯片与讲稿
+
+${sections.join(`
+`)}
+${SLIDES_END}`;
+      const mapBody = (b2) => `${b2.replace(SLIDES_BLOCK, `
+
+`).trim()}
+
+${slidesBlock}
+`.replace(/^\n+/, "");
+      await writeDrawing(path5, els, overwrite ?? false, "professional", { body: back, properties: parseProps(properties), mapBody });
       return text(`Saved ${spec.slides.length} slides (${els.length} elements) to ${path5}. Run the Slideshow script in Obsidian to present.`);
     } catch (e) {
       return fail(e);
@@ -64383,21 +64416,24 @@ function registerTools(server, distDir, store) {
       const sections = order.map((id) => {
         const { spec, card } = built.get(id);
         const more = (spec.back ?? "").trim();
+        const talk = notesCallout(spec.notes);
         return `### ${card.heading}
 
 ![[${linkBase}#^frame=${card.frameId}|900]]
-${more ? `
+${talk ? `
+${talk}` : ""}${more ? `
 ${more}
 ` : ""}`;
       });
-      const body = `${(back ?? `# ${b2.title ?? b2.key}`).trim()}
+      const mapBody = (cur) => `${cur.split(/^## 卡片\s*$/m)[0].trim() || `# ${b2.title ?? b2.key}`}
 
 ## 卡片
 
 ${sections.join(`
 `)}`;
       await writeDrawing(path5, els, overwrite ?? false, "professional", {
-        body,
+        body: back,
+        mapBody,
         properties: parseProps(properties),
         appState: { viewBackgroundColor: th.bg, theme: th.dark ? "dark" : "light", frameRendering: { enabled: true, clip: false, name: true, outline: true } }
       });

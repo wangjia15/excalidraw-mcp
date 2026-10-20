@@ -442,6 +442,11 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
   const vaultParam = z.string().optional().describe("Absolute path of the Obsidian vault folder (must contain .obsidian/). Default: the OBSIDIAN_VAULT the server was started with.");
   const inVault = (vault: string | undefined, fn: () => Promise<CallToolResult>) => withVault(vault, fn).catch(fail);
   const themeOf = (theme?: string) => loadTheme(theme, getVaultRoot(), BUNDLED_THEMES);
+  /** presenter notes as a callout on the markdown side */
+  const notesCallout = (notes?: string) => (notes?.trim() ? `> [!note] 讲稿\n${notes.trim().split(/\r?\n/).map((l) => `> ${l}`).join("\n")}\n` : "");
+  const SLIDES_START = "%% slides:start · obsidian_write_slides 生成：每页的嵌入和讲稿，重写课件时整段更新，请不要手改 %%";
+  const SLIDES_END = "%% slides:end %%";
+  const SLIDES_BLOCK = /\n*%% slides:start[^\n]*%%[\s\S]*?%% slides:end %%\n*/;
 
   server.registerTool(
     "obsidian_list_drawings",
@@ -559,7 +564,18 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
           }
         }
         const els = buildSlides(spec, themeOf(theme));
-        await writeDrawing(path, els, overwrite ?? false, "professional", { body: back, properties: parseProps(properties) });
+        // markdown side: one section per slide (embed + presenter notes), with a block id ^pNN to link from the lesson plan
+        const linkBase = path.replace(/\.md$/, "");
+        const frames = els.filter((e) => e.type === "frame").sort((a, b) => a.customData.slideshow.order - b.customData.slideshow.order);
+        const sections = frames.map((f, i) => {
+          const s = spec.slides[i] ?? {}, n = String(i + 1).padStart(2, "0");
+          const title = String(s.title ?? "").replace(/[#|[\]^:\\]/g, " ").replace(/\s+/g, " ").trim();
+          const talk = notesCallout(s.notes);
+          return `### P${n} ${title}\n\n![[${linkBase}#^frame=${f.id}|640]] ^p${n}\n${talk ? `\n${talk}` : ""}`;
+        });
+        const slidesBlock = `${SLIDES_START}\n## 幻灯片与讲稿\n\n${sections.join("\n")}\n${SLIDES_END}`;
+        const mapBody = (b: string) => `${b.replace(SLIDES_BLOCK, "\n\n").trim()}\n\n${slidesBlock}\n`.replace(/^\n+/, "");
+        await writeDrawing(path, els, overwrite ?? false, "professional", { body: back, properties: parseProps(properties), mapBody });
         return text(`Saved ${spec.slides.length} slides (${els.length} elements) to ${path}. Run the Slideshow script in Obsidian to present.`);
       } catch (e) { return fail(e); }
     }),
@@ -640,11 +656,13 @@ export function registerTools(server: McpServer, distDir: string, store: Checkpo
         const sections = order.map((id) => {
           const { spec, card } = built.get(id)!;
           const more = (spec.back ?? "").trim();
-          return `### ${card.heading}\n\n![[${linkBase}#^frame=${card.frameId}|900]]\n${more ? `\n${more}\n` : ""}`;
+          const talk = notesCallout(spec.notes);
+          return `### ${card.heading}\n\n![[${linkBase}#^frame=${card.frameId}|900]]\n${talk ? `\n${talk}` : ""}${more ? `\n${more}\n` : ""}`;
         });
-        const body = `${(back ?? `# ${b.title ?? b.key}`).trim()}\n\n## 卡片\n\n${sections.join("\n")}`;
+        // the literature note is the part above "## 卡片"; when back is omitted on overwrite, keep the existing one
+        const mapBody = (cur: string) => `${(cur.split(/^## 卡片\s*$/m)[0].trim() || `# ${b.title ?? b.key}`)}\n\n## 卡片\n\n${sections.join("\n")}`;
         await writeDrawing(path, els, overwrite ?? false, "professional", {
-          body, properties: parseProps(properties),
+          body: back, mapBody, properties: parseProps(properties),
           appState: { viewBackgroundColor: th.bg, theme: th.dark ? "dark" : "light", frameRendering: { enabled: true, clip: false, name: true, outline: true } },
         });
         return text(`Saved board ${b.key ?? ""}: ${specs.length} cards (${rest.length} unplaced → 其他), ${els.length} elements, to ${path}. Slideshow: overview + cards in map order. Card order: ${order.join(", ")}`);

@@ -1,6 +1,6 @@
 ---
 name: boppps-lesson
-description: 按 BOPPPS 教学模式生成教学用 PPT 和配套教案：一个 Excalidraw 文档 = 一讲课。正面（Excalidraw 面）是 16:9 幻灯片（BOPPPS 六点进度、环节分隔页、时长徽章、代码高亮、Mermaid 图经插件内置 mermaid-to-excalidraw 转成原生图形、网上搜集的配图、逐条动画、演讲者备注，可用 Slideshow 放映），背面（Markdown 面）是根据这套 PPT 写的完整教案（学情、目标、重难点、BOPPPS 教学过程表、板书、作业、反思、图片来源）。用户提供资料就读资料，没提供就上网搜索教学内容。存入用户的 Obsidian vault，生成用本插件的 Excalidraw MCP 工具，Mermaid 转换与验图用 Obsidian Excalidraw 原生 CLI。当用户说"做一讲课件/PPT + 教案""按 BOPPPS 设计一节课""生成教学 PPT 和教案""给 X 主题备课"，或给出教材/讲义/链接希望做成课件和教案时使用。
+description: 按 BOPPPS 教学模式生成教学用 PPT 和配套教案：一个 Excalidraw 文档 = 一讲课。正面（Excalidraw 面）是 16:9 幻灯片（BOPPPS 六点进度、环节分隔页、时长徽章、代码高亮、Mermaid 图经插件内置 mermaid-to-excalidraw 转成原生图形、网上搜集的配图、逐条动画、演讲者备注，可用 Slideshow 放映），背面（Markdown 面）是根据这套 PPT 写的完整教案（学情、目标、重难点、BOPPPS 教学过程表、板书、作业、反思、图片来源），后面逐页附幻灯片引用和该页讲稿。用户提供资料就读资料，没提供就上网搜索教学内容。存入用户的 Obsidian vault，生成用本插件的 Excalidraw MCP 工具，Mermaid 转换与验图用 Obsidian Excalidraw 原生 CLI。当用户说"做一讲课件/PPT + 教案""按 BOPPPS 设计一节课""生成教学 PPT 和教案""给 X 主题备课"，或给出教材/讲义/链接希望做成课件和教案时使用。
 ---
 
 # BOPPPS 课件 + 教案（boppps-lesson）
@@ -8,7 +8,11 @@ description: 按 BOPPPS 教学模式生成教学用 PPT 和配套教案：一个
 一讲课 = **一个文档** `<课程目录>/<NN 主题>/<NN 主题> 课件.excalidraw.md`：
 
 - **正面（Excalidraw 面）**：教学 PPT。封面 → 每个 BOPPPS 环节一张分隔页 + 若干内容页。每页右上角有六点进度（当前环节高亮），标题旁有时长徽章（`badge`）和活动标签（`act`），要点逐条出现，`notes` 是讲稿。用 Slideshow 脚本放映。
-- **背面（Markdown 面）**：教案，按 [references/lesson-plan.md](references/lesson-plan.md) 模板写。教学过程表的每一行都标明"对应幻灯片"，与正面一一对应。翻面用命令面板 `Excalidraw: Toggle between Excalidraw and Markdown mode`。
+- **背面（Markdown 面）**：
+  1. 教案（`back`），按 [references/lesson-plan.md](references/lesson-plan.md) 模板写。教学过程表的"幻灯片"列链接到下面对应页（`[[课件#^p08|8]]`）。
+  2. `## 幻灯片与讲稿`：工具根据 deck **自动生成**，每页一节 `### P<NN> <标题>` = 该页幻灯片嵌入 + `> [!note] 讲稿`（该页 `notes`）。每次重写自动更新，不要手写或手改。
+
+  翻面用命令面板 `Excalidraw: Toggle between Excalidraw and Markdown mode`。
 
 ## 0. 环境（每次开始先确认）
 
@@ -41,10 +45,10 @@ description: 按 BOPPPS 教学模式生成教学用 PPT 和配套教案：一个
    - **Mermaid**：流程、时序、类关系、状态机、架构用 `mermaid` 字段画在幻灯片上；教案背面可直接写 ```` ```mermaid ```` 代码块。规则见 [references/deck-spec.md](references/deck-spec.md#mermaid)。
    - **代码**：`code` 字段，≤ 18 行，只保留讲解要用的部分，用注释 `// ①` 与要点编号对应。
    - **网图**：见 [references/deck-spec.md](references/deck-spec.md#网上图片)。优先用有开放许可的图（Wikimedia Commons、官方文档图），下载到 `<讲目录>/assets/`，用 Read 看一遍确认内容合适，来源和许可写进教案。找不到合适的图时，用 `mcp__magpie-image__generate_image` 生成示意图作为后备，并在来源里注明"AI 生成"。
-5. **写课件**：一次 `obsidian_write_slides` 写入：`deck` = 幻灯片，`back` = 教案全文，`properties` = frontmatter，`theme` 默认 `campus`。规格见 [references/deck-spec.md](references/deck-spec.md)。
+5. **写课件**：一次 `obsidian_write_slides` 写入：`deck` = 幻灯片（**每页都写 `notes` 讲稿**，规则见 [deck-spec.md](references/deck-spec.md#讲稿notes)），`back` = 教案全文（不含幻灯片与讲稿段），`properties` = frontmatter，`theme` 默认 `campus`。写完用 `obsidian_read_drawing`（`withBack:true`）确认背面的 `## 幻灯片与讲稿` 页数 = 幻灯片数、内容页都有讲稿。
 6. **转换 Mermaid**：CLI `open` 打开课件，再执行 `script`，运行 `Mermaid to Excalidraw.md`，确认 `summary` 里转换数 = 占位框数，失败的按 `report[].error` 改 Mermaid 代码后重写重转。脚本会按课件主题给图上色（节点/判断/分组/连线/文字），需要时用 `args.style` 微调配色；`report[].minFont` < 16 说明图字太小，要改图。见 [references/tools.md](references/tools.md)。
 7. **验图**：CLI `export source=disk` 导出 PNG，用 Read 看：文字溢出/重叠、Mermaid 图是否太小、代码是否完整、图片是否显示、六点进度是否对应环节。
-8. **精修**：改 deck 后 `overwrite:true` 重写，**然后必须重新跑一次 Mermaid 转换**（重写会恢复成占位框）。用户手改过的文件不要覆盖，改用 CLI `apply` 局部修改。
+8. **精修**：改 deck 后 `overwrite:true` 重写（不传 `back` 时教案保留，幻灯片与讲稿段按新 deck 重新生成；改讲稿就改 `notes`），**然后必须重新跑一次 Mermaid 转换**（重写会恢复成占位框）。用户手改过的文件不要覆盖，改用 CLI `apply` 局部修改。
 9. **汇报**：文件路径、幻灯片清单（序号/环节/标题/时长/用了什么图）、教案要点、图片来源、预览 PNG 路径、实际做过的检查和未验证的部分。
 
 ## 2. 设计原则

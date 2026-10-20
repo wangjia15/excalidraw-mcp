@@ -36,7 +36,7 @@
 | `points` | ≤ 5 条要点，`"文字"` 或 `{n, text}`。`n` 与图上的 `marks`/`boxes` 编号相同时，编号圈会变成红色，表示两者对应 |
 | `takeaway` | 一句结论，显示在右下角 |
 | `source` | 页脚出处，如 `Fig.3 · §4.3` |
-| `notes` | Slideshow 演讲者备注 |
+| `notes` | 讲稿：Slideshow 演讲者备注，同时写到 Markdown 面该卡一节（嵌入下面的 `> [!note] 讲稿`）。每张卡写 2–5 句口语讲解：这张卡回答什么问题、图怎么看（按编号）、结论 |
 | `back` | 这张卡的背面 Markdown（模板见下），出现在 Markdown 面该卡的那一节 |
 
 ### 图形（visual）

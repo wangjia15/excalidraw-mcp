@@ -37,7 +37,7 @@ claude mcp add -s user excalidraw-obsidian -e OBSIDIAN_VAULT=/path/to/vault -- n
 ## 依赖
 
 - Obsidian + [Excalidraw 插件](https://github.com/zsviczian/obsidian-excalidraw-plugin)，vault 里装好 Slideshow（两个技能）和 Mindmap Builder（paper-zettel）脚本。
-- 验图和 Mermaid 转换用 Excalidraw 插件的原生 CLI（`obsidian-excalidraw-plugin:<命令>`：`status`、`open`、`script`、`export`、`apply`…）。Obsidian 没开时只能生成，不能转换和验图。
+- 验图和 Mermaid 转换用 Excalidraw 插件的原生 CLI（`obsidian-excalidraw-plugin:<命令>`：`status`、`open`、`script`、`export`、`apply`…）。Obsidian 没开时只能生成，不能转换和验图。可选：另装官方的 [obsidian-excalidraw-cli](https://github.com/zsviczian/obsidian-excalidraw-cli) 技能（AGPL-3.0，需整包安装，不随本插件分发）。它有完整的 CLI 协议说明和恢复规则，还带 `doctor.mjs`（查 Obsidian/vault 状态）和 `validate.mjs`（检查场景）脚本，CLI 出问题时用来诊断。
 - boppps-lesson：vault 里要有 `Excalidraw/Scripts/Mermaid to Excalidraw.md`（`obsidian_install_vault_files` 安装）。
 - paper-zettel：Python 3 + PyMuPDF（`pip install pymupdf`），用于 `scripts/pdf_figures.py` 截取论文图表。
 
