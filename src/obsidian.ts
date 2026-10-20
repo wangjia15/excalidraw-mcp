@@ -34,7 +34,16 @@ export function compressScene(json: string): string {
   return chunks.join("\n\n");
 }
 
-export function parseExcalidrawMd(md: string): { scene: any; frontmatter: string } {
+const WARNING_LINE = "==⚠  Switch to EXCALIDRAW VIEW in the MORE OPTIONS menu of this document. ⚠==";
+const DATA_HEADER = /^(%%\n+)?# Excalidraw Data(?:\n|$)/m;
+const SECTION_LINE = /^(# Excalidraw Data|##? Text Elements|## Element Links|## Embedded Files|##? Drawing)\s*$/m;
+
+/**
+ * Split an Excalidraw plugin file into its frontmatter, the free markdown body the plugin keeps above
+ * `# Excalidraw Data` (shown in markdown view: the back of a card) and the scene.
+ */
+export function parseExcalidrawMd(md: string): { scene: any; frontmatter: string; body: string } {
+  md = md.replace(/\r\n/g, "\n");
   const fm = md.match(/^---\n[\s\S]*?\n---/)?.[0] ?? "";
   let json: string | null = null;
   const c = md.match(DRAWING_COMPRESSED_REG);
@@ -45,10 +54,28 @@ export function parseExcalidrawMd(md: string): { scene: any; frontmatter: string
     if (j) json = j[1];
   }
   if (!json) throw new Error("No ## Drawing section found; not an Excalidraw plugin file");
-  return { scene: JSON.parse(json), frontmatter: fm };
+  const head = md.slice(fm.length), end = head.search(DATA_HEADER);
+  const body = (end < 0 ? "" : head.slice(0, end))
+    .split("\n").filter((l) => !/^==⚠.*⚠==\s*$/.test(l)).join("\n").trim();
+  return { scene: JSON.parse(json), frontmatter: fm, body };
 }
 
-export function buildExcalidrawMd(scene: any, frontmatter?: string): string {
+/** YAML frontmatter from a property object; values are written as JSON, which is valid YAML flow style */
+export function buildFrontmatter(props: Record<string, unknown> = {}): string {
+  const tags = new Set<string>(["excalidraw"]);
+  const t = props.tags;
+  for (const x of Array.isArray(t) ? t : typeof t === "string" ? [t] : []) tags.add(String(x));
+  const lines = ["excalidraw-plugin: parsed", `tags: ${JSON.stringify([...tags])}`];
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "tags" || k === "excalidraw-plugin" || v === undefined) continue;
+    if (!/^[\p{L}\p{N}_-]+$/u.test(k)) throw new Error(`invalid property name: ${k}`);
+    lines.push(`${k}: ${JSON.stringify(v)}`);
+  }
+  return `---\n\n${lines.join("\n")}\n\n---`;
+}
+
+export function buildExcalidrawMd(scene: any, frontmatter?: string, body = ""): string {
+  if (SECTION_LINE.test(body)) throw new Error("back markdown must not contain Excalidraw section headings (# Excalidraw Data, ## Text Elements, ## Drawing ...)");
   const fm = frontmatter && frontmatter.includes("excalidraw-plugin")
     ? frontmatter
     : "---\n\nexcalidraw-plugin: parsed\ntags: [excalidraw]\n\n---";
@@ -62,15 +89,19 @@ export function buildExcalidrawMd(scene: any, frontmatter?: string): string {
     if (e.type === "image" && !e.isDeleted && e.fileId && e.customData?.vaultPath) embedded.set(e.fileId, e.customData.vaultPath);
   }
   const files = embedded.size ? `## Embedded Files\n${[...embedded].map(([id, p]) => `${id}: [[${p}]]\n`).join("\n")}\n` : "";
+  // links on shapes and images: "<link> ^<id>" under "## Element Links" (text elements keep links in their text)
+  const linked = (scene.elements ?? []).filter((e: any) => e.type !== "text" && e.link && !e.isDeleted);
+  const links = linked.length ? `## Element Links\n${linked.map((e: any) => `${e.link} ^${e.id}\n`).join("\n")}\n` : "";
+  const back = body.trim() ? `${body.trim()}\n\n` : "\n";
   return `${fm}
-==⚠  Switch to EXCALIDRAW VIEW in the MORE OPTIONS menu of this document. ⚠==
+${WARNING_LINE}
 
-
+${back}
 # Excalidraw Data
 
 ## Text Elements
 ${texts}
-${files}%%
+${links}${files}%%
 ## Drawing
 \`\`\`compressed-json
 ${compressScene(JSON.stringify(scene))}
@@ -143,13 +174,17 @@ export async function listDrawings(dir = ""): Promise<string[]> {
   return out;
 }
 
+export async function readDrawingFile(rel: string) {
+  return parseExcalidrawMd(await fs.readFile(resolveVaultPath(rel), "utf8"));
+}
+
 export async function readDrawing(rel: string) {
-  const md = await fs.readFile(resolveVaultPath(rel), "utf8");
-  return parseExcalidrawMd(md).scene;
+  return (await readDrawingFile(rel)).scene;
 }
 
 /** pixel size of a PNG / JPEG / GIF / WebP file, or null when unknown (e.g. SVG) */
 export async function imageSize(rel: string): Promise<{ w: number; h: number } | null> {
+  if (rel.endsWith(".excalidraw.md")) return drawingSize(rel);
   const b = await fs.readFile(resolveVaultPath(rel));
   if (b.length > 24 && b.readUInt32BE(0) === 0x89504e47) return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) };
   if (b.length > 10 && b[0] === 0xff && b[1] === 0xd8) {
@@ -168,12 +203,30 @@ export async function imageSize(rel: string): Promise<{ w: number; h: number } |
   return null;
 }
 
-export async function writeDrawing(rel: string, elements: any[], overwrite: boolean, style: "professional" | "none" = "professional", extra: { appState?: Record<string, any> } = {}) {
-  elements = normalizeIds(elements);
+/** size of an embedded drawing as the plugin renders it: the bounds of its elements (frames included) */
+async function drawingSize(rel: string): Promise<{ w: number; h: number } | null> {
+  const els = ((await readDrawing(rel)).elements ?? []).filter((e: any) => !e.isDeleted);
+  if (!els.length) return null;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const e of els) {
+    x0 = Math.min(x0, e.x); y0 = Math.min(y0, e.y);
+    x1 = Math.max(x1, e.x + Math.abs(e.width ?? 0)); y1 = Math.max(y1, e.y + Math.abs(e.height ?? 0));
+  }
+  return { w: Math.max(1, Math.round(x1 - x0)), h: Math.max(1, Math.round(y1 - y0)) };
+}
+
+/**
+ * `body` is the markdown kept above `# Excalidraw Data` (the back of a card) and `properties` the frontmatter;
+ * when overwriting, whichever of the two is not given is kept from the existing file.
+ */
+export async function writeDrawing(rel: string, elements: any[], overwrite: boolean, style: "professional" | "none" = "professional", extra: { appState?: Record<string, any>; body?: string; properties?: Record<string, unknown> } = {}) {
+  // the plugin does not restore a missing angle: ellipse bounds become NaN, so they vanish and break export
+  elements = normalizeIds(elements).map((e) => (Number.isFinite(e.angle) ? e : { ...e, angle: 0 }));
   if (style === "professional") elements = applyProfessionalStyle(elements);
   if (!rel.endsWith(".excalidraw.md")) throw new Error("Path must end with .excalidraw.md");
   const full = resolveVaultPath(rel);
   let frontmatter: string | undefined;
+  let body = extra.body;
   let scene: any = {
     type: "excalidraw", version: 2, source: "excalidraw-mcp",
     elements, appState: { theme: "light", viewBackgroundColor: "#ffffff", ...(style === "professional" ? PROFESSIONAL_APP_STATE : {}) }, files: {},
@@ -182,11 +235,13 @@ export async function writeDrawing(rel: string, elements: any[], overwrite: bool
     const existing = parseExcalidrawMd(await fs.readFile(full, "utf8"));
     if (!overwrite) throw new Error(`${rel} already exists (pass overwrite: true)`);
     frontmatter = existing.frontmatter;
+    body ??= existing.body;
     scene = { ...existing.scene, elements };
   } catch (e: any) {
     if (e.code !== "ENOENT" && !String(e.message).includes("No ## Drawing")) throw e;
   }
+  if (extra.properties) frontmatter = buildFrontmatter(extra.properties);
   if (extra.appState) scene.appState = { ...scene.appState, ...extra.appState };
   await fs.mkdir(path.dirname(full), { recursive: true });
-  await fs.writeFile(full, buildExcalidrawMd(scene, frontmatter), "utf8");
+  await fs.writeFile(full, buildExcalidrawMd(scene, frontmatter, body), "utf8");
 }

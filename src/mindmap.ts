@@ -20,7 +20,9 @@ import { FRESH, onColor, type Theme } from "./slide-theme.js";
 export const GROWTH_MODES = ["Radial", "Right-facing", "Left-facing", "Right-Left", "Up-facing", "Down-facing", "Up-Down"] as const;
 export type GrowthMode = (typeof GROWTH_MODES)[number];
 export type MindImage = { path: string; w?: number; h?: number };
-export type MindNode = { t: string; c?: MindNode[]; img?: MindImage };
+export type MindNode = { t: string; c?: MindNode[]; img?: MindImage; link?: string; card?: string };
+/** a prebuilt card (see cards.ts): elements at the origin, w x h, the background rect that acts as the node */
+export type MindCard = { els: any[]; w: number; h: number; bgId: string; frameId: string };
 export type MindOptions = {
   theme?: Theme;
   maxWidth?: number;          // wrap width of level-3+ text (default 440)
@@ -28,15 +30,24 @@ export type MindOptions = {
   fontFamily?: number;        // Excalidraw font id (2 = system sans)
   frames?: boolean;           // add Slideshow marker frames (default true)
   frameHeight?: number;       // content height that fits one frame (default 760)
+  /** cards referenced by `@ID` outline lines; each becomes a node and a Slideshow frame in map order */
+  cards?: Map<string, MindCard>;
 };
 
-const GAPX = 64, GAPY = 12, GAP_L2 = 22, GAP_L1 = 40, GAPV = 56;
+const GAPX = 64, GAPY = 12, GAP_L2 = 22, GAP_L1 = 40, GAPV = 56, CARD_GAP = 28;
 const pad = [0, 24, 16, 0];
 const FS = [36, 26, 21, 19, 18];
 const SW = [3, 5, 3.5, 2.5, 2.5];
 const fsOf = (l: number) => FS[Math.min(l, 4)];
 
-/** Parse an indented markdown outline (first line = root) into a tree. `![alt](path)` lines become image nodes. */
+const WIKI = /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g;
+const linkLabel = (target: string, alias?: string) => alias?.trim() || target.trim().split("/").pop()!.replace(/\.excalidraw(\.md)?$|\.md$/, "");
+
+/**
+ * Parse an indented markdown outline (first line = root) into a tree. `![alt](path)` lines become image nodes,
+ * `![[drawing.excalidraw.md|alt]]` embeds a vault file (e.g. a card) as an image node linked to it, and a node
+ * containing `[[note|alias]]` links to that note (the first link wins; the text shows the alias).
+ */
 export function parseOutline(md: string): MindNode {
   const rows = md.split(/\r?\n/).filter((l) => l.trim()).map((l) => {
     const m = l.match(/^(\s*)(?:[-*+]\s+|#+\s+)?(.*)$/)!;
@@ -45,7 +56,14 @@ export function parseOutline(md: string): MindNode {
   if (!rows.length) throw new Error("Empty outline");
   const mk = (t: string): MindNode => {
     const im = t.match(/^!\[(.*?)\]\((.+?)\)$/);
-    return im ? { t: im[1], img: { path: decodeURI(im[2]) } } : { t };
+    if (im) return { t: im[1], img: { path: decodeURI(im[2]) } };
+    const cd = t.match(/^@([A-Za-z0-9_.-]+)$/);
+    if (cd) return { t: cd[1], card: cd[1] };
+    const em = t.match(/^!\[\[([^\]|]+)(?:\|([^\]]*))?\]\]$/);
+    if (em) return { t: linkLabel(em[1], em[2]), img: { path: em[1].trim() }, link: `[[${em[1].trim()}]]` };
+    const lk = [...t.matchAll(WIKI)][0];
+    if (!lk) return { t };
+    return { t: t.replace(WIKI, (_m, a: string, b?: string) => linkLabel(a, b)).trim(), link: lk[0] };
   };
   const root = mk(rows[0].t);
   const stack: { d: number; n: MindNode }[] = [{ d: rows[0].d - 1, n: root }];
@@ -66,7 +84,7 @@ export function imageNodes(tree: MindNode): MindNode[] {
 
 /** markdown bullet list of a subtree, used as presenter notes */
 function outline(n: MindNode, depth = 0): string[] {
-  const label = n.img ? `[图] ${n.t}` : n.t;
+  const label = n.img ? `[图] ${n.t}` : n.card ? `[卡] ${n.t}` : n.t;
   return [`${"  ".repeat(depth)}- ${label}`, ...(n.c ?? []).flatMap((k) => outline(k, depth + 1))];
 }
 
@@ -85,13 +103,20 @@ export function buildMindmap(tree: MindNode, growthMode: GrowthMode = "Right-Lef
   const id = (p: string) => `${p}${++uid}`;
   const kids = tree.c ?? [];
 
-  type Sz = { w: number; h: number; text: string; fs: number; kind: "image" | "box" | "plain" };
+  type Sz = { w: number; h: number; text: string; fs: number; kind: "image" | "box" | "plain" | "card" };
+  const cardOf = (n: MindNode) => {
+    const c = opts.cards?.get(n.card!);
+    if (!c) throw new Error(`outline references unknown card @${n.card}`);
+    return c;
+  };
+  let cardOrder = wantFrames ? 1 : 0;
   const size = (n: MindNode, l: number): Sz => {
+    if (n.card) { const c = cardOf(n); return { w: c.w, h: c.h + CARD_GAP * 2, text: "", fs: 0, kind: "card" }; }
     if (n.img) {
       const iw = n.img.w ?? 800, ih = n.img.h ?? 600, w = Math.min(imgW, iw), h = Math.round((ih * w) / iw);
       return { w: w + 16, h: h + 16, text: "", fs: 0, kind: "image" };
     }
-    const fs = fsOf(l), boxed = l <= 2, px = boxed ? pad[l] : 4, py = boxed ? (l === 1 ? 12 : 8) : 5;
+    const fs = fsOf(l), boxed = l <= 2 || !!n.link, px = boxed ? pad[Math.min(l, 2)] : 4, py = boxed ? (l === 1 ? 12 : 8) : 5;
     const text = wrap(n.t, fs, l === 1 ? 340 : l === 2 ? 440 : maxW3);
     const tw = Math.max(...text.split("\n").map((x) => wOf(x, fs))), th = Math.ceil(linesOf(text) * fs * 1.3);
     return { w: tw + px * 2, h: th + py * 2 + (boxed ? 0 : 6), text, fs, kind: boxed ? "box" : "plain" };
@@ -102,7 +127,7 @@ export function buildMindmap(tree: MindNode, growthMode: GrowthMode = "Right-Lef
   const rtw = Math.max(...rls.map((x) => wOf(x, rootFs))), rth = Math.ceil(rls.length * rootFs * 1.3);
   const rw = rtw + 100, rh = rth + 56;
   const rootBox: Box = { id: "root", x: -rw / 2, y: -rh / 2, w: rw, h: rh, ay: 0 };
-  els.push({ type: "rectangle", id: "root", x: rootBox.x, y: rootBox.y, width: rw, height: rh, strokeColor: T.brand, backgroundColor: T.accent, fillStyle: "solid", strokeWidth: 3, roundness: { type: 3 }, boundElements: [{ type: "text", id: "rootT" }], customData: { growthMode, multicolor: true, mindmapOrder: 0 } });
+  els.push({ type: "rectangle", id: "root", x: rootBox.x, y: rootBox.y, width: rw, height: rh, strokeColor: T.brand, backgroundColor: T.accent, fillStyle: "solid", strokeWidth: 3, roundness: { type: 3 }, boundElements: [{ type: "text", id: "rootT" }], customData: { growthMode, multicolor: true, mindmapOrder: 0 }, ...(tree.link ? { link: tree.link } : {}) });
   els.push({ type: "text", id: "rootT", x: -rtw / 2, y: -rth / 2, width: rtw, height: rth, text: rootText, originalText: rootText, fontSize: rootFs, fontFamily: font, textAlign: "center", verticalAlign: "middle", containerId: "root", strokeColor: onColor(T.accent), lineHeight: 1.3 });
 
   const branchColor = (i: number) => series[i % series.length];
@@ -118,17 +143,28 @@ export function buildMindmap(tree: MindNode, growthMode: GrowthMode = "Right-Lef
 
   /** create the element(s) of a node; (x, y) is the top-left corner */
   const makeNode = (n: MindNode, lvl: number, x: number, y: number, bi: number, order: number, align: string): Box => {
-    const s = size(n, lvl), c = branchColor(bi), nid = id("n");
+    const s = size(n, lvl), c = branchColor(bi), nid = id("n"), link = n.link ? { link: n.link } : {};
+    if (s.kind === "card") {
+      const cd = cardOf(n), order1 = cardOrder++;
+      y += CARD_GAP; // room for the frame name above the card
+      for (const e of cd.els) {
+        const o = { ...e, x: e.x + x, y: e.y + y };
+        if (e.id === cd.bgId) o.customData = { ...e.customData, mindmapOrder: order };
+        if (e.id === cd.frameId) o.customData = { ...e.customData, slideshow: { ...e.customData?.slideshow, order: order1 } };
+        els.push(o);
+      }
+      return { id: cd.bgId, x, y, w: cd.w, h: cd.h, ay: y + cd.h / 2 };
+    }
     if (s.kind === "image") {
       const fileId = createHash("sha1").update(n.img!.path).digest("hex");
-      els.push({ type: "rectangle", id: nid, x, y, width: s.w, height: s.h, strokeColor: c.c, strokeWidth: 3, backgroundColor: T.card, fillStyle: "solid", roundness: { type: 3 }, customData: { mindmapOrder: order } });
-      els.push({ type: "image", id: id("i"), x: x + 8, y: y + 8, width: s.w - 16, height: s.h - 16, fileId, status: "saved", scale: [1, 1], strokeColor: "transparent", strokeWidth: 0, roundness: null, customData: { vaultPath: n.img!.path } });
+      els.push({ type: "rectangle", id: nid, x, y, width: s.w, height: s.h, strokeColor: c.c, strokeWidth: 3, backgroundColor: T.card, fillStyle: "solid", roundness: { type: 3 }, customData: { mindmapOrder: order }, ...link });
+      els.push({ type: "image", id: id("i"), x: x + 8, y: y + 8, width: s.w - 16, height: s.h - 16, fileId, status: "saved", scale: [1, 1], strokeColor: "transparent", strokeWidth: 0, roundness: null, customData: { vaultPath: n.img!.path }, ...link });
       return { id: nid, x, y, w: s.w, h: s.h, ay: y + s.h / 2 };
     }
     if (s.kind === "box") {
       const tid = id("t"), fill = lvl === 1 ? c.c : c.bg, ink = lvl === 1 ? onColor(c.c) : T.ink;
-      els.push({ type: "rectangle", id: nid, x, y, width: s.w, height: s.h, strokeColor: c.c, strokeWidth: lvl === 1 ? 0 : 2.5, backgroundColor: fill, fillStyle: "solid", roundness: { type: 3 }, boundElements: [{ type: "text", id: tid }], customData: { mindmapOrder: order } });
-      const tw = s.w - pad[lvl] * 2, th = s.h - (lvl === 1 ? 24 : 16);
+      els.push({ type: "rectangle", id: nid, x, y, width: s.w, height: s.h, strokeColor: c.c, strokeWidth: lvl === 1 ? 0 : 2.5, backgroundColor: fill, fillStyle: "solid", roundness: { type: 3 }, boundElements: [{ type: "text", id: tid }], customData: { mindmapOrder: order }, ...link });
+      const tw = s.w - pad[Math.min(lvl, 2)] * 2, th = s.h - (lvl === 1 ? 24 : 16);
       els.push({ type: "text", id: tid, x: x + (s.w - tw) / 2, y: y + (s.h - th) / 2, width: tw, height: th, text: s.text, originalText: s.text, fontSize: s.fs, fontFamily: font, lineHeight: 1.3, textAlign: "center", verticalAlign: "middle", containerId: nid, strokeColor: ink, customData: { mindmapOrder: order } });
       return { id: nid, x, y, w: s.w, h: s.h, ay: y + s.h / 2 };
     }
@@ -267,6 +303,7 @@ export function buildMindmap(tree: MindNode, growthMode: GrowthMode = "Right-Lef
   let all: BB | null = bbOf(rootBox);
   for (const b of branches) all = union(all, b.bb);
   mkFrame(all!, "00 全图概览", outline(tree).slice(0, 1).join("\n") + "\n" + kids.map((k) => `- ${k.t}`).join("\n"), 1600, 90);
+  if (opts.cards?.size) return [...frames, ...els]; // the cards themselves are the following slides
   [...branches].sort((a, b) => kids.indexOf(a.n) - kids.indexOf(b.n)).forEach((br) => {
     const idx = kids.indexOf(br.n) + 1, label = `${String(idx).padStart(2, "0")} ${br.n.t}`;
     const items = br.n.c ?? [];

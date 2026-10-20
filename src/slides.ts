@@ -43,9 +43,27 @@ export type SlideSpec = {
   kv?: [string, string][];
   /** picture from the vault (PNG/JPEG/GIF/WebP); w/h are its pixel size (the MCP tool fills them in) */
   image?: { path: string; w?: number; h?: number; caption?: string };
+  /** Mermaid diagram: drawn as a placeholder box holding the code in customData.mermaid; the vault script
+   *  "Mermaid to Excalidraw" replaces it with native elements (ea.addMermaid). ratio = width/height of the box */
+  mermaid?: string | { code: string; ratio?: number; caption?: string };
 };
+
+/** default box shape of a mermaid diagram, from its direction */
+function mermaidRatio(code: string): number {
+  const head = code.trim().split("\n")[0];
+  if (/^(flowchart|graph)\s+(LR|RL)/i.test(head)) return 2.4;
+  if (/^(flowchart|graph)/i.test(head)) return 1.1;
+  if (/^sequenceDiagram/i.test(head)) return 1.5;
+  return 1.6;
+}
 export type FontChoice = "sans" | "hand" | "local";
-export type DeckSpec = { title?: string; slides: SlideSpec[]; titleFont?: FontChoice; bodyFont?: FontChoice; progress?: boolean };
+export type DeckSpec = {
+  title?: string; slides: SlideSpec[]; titleFont?: FontChoice; bodyFont?: FontChoice; progress?: boolean;
+  /** render the first slide as a cover (default true; single-slide cards turn it off) */
+  firstIsCover?: boolean;
+  /** footer label replacing the "n / total" counter, e.g. a card id */
+  pageLabel?: string;
+};
 
 export let ACC: { c: string; bg: string }[] = FRESH.series;
 const METHOD: Record<string, string> = { GET: "#2e8b57", POST: "#2f6fb5", PUT: "#c97a12", PATCH: "#6b4fb8", DELETE: "#c0392b" };
@@ -130,6 +148,15 @@ export function buildSlides(spec: DeckSpec, theme: Theme = FRESH): any[] {
     const item = (els: El[]): Item => ({ els, ids: els.map((e) => e.id) });
     const shift = (els: El[], dx: number, dy: number) => els.forEach((e) => { e.x += dx; e.y += dy; });
     const cardStyle = { backgroundColor: T.card, strokeColor: T.line, strokeWidth: 1, roundness: round };
+    // theme palette for the "Mermaid to Excalidraw" vault script (it colours the converted diagram)
+    const mermaidStyle = {
+      fontFamily: BF, text: INK, line: MUTED, edgeText: MUTED,
+      node: { fill: ACC[0].bg, stroke: ACC[0].c },
+      decision: { fill: ACC[1].bg, stroke: ACC[1].c },
+      terminal: { fill: ACC[2].bg, stroke: ACC[2].c },
+      group: { fill: T.soft, stroke: T.line },
+      actor: { fill: T.hintBg, stroke: T.accent },
+    };
 
     // ---- blocks ----
     /** process flow: boxes with number badges, wrapped into serpentine rows */
@@ -416,7 +443,7 @@ export function buildSlides(spec: DeckSpec, theme: Theme = FRESH): any[] {
     // ---- slides ----
     spec.slides.forEach((s, idx) => {
       const fx = 0, fy = idx * (H + GAP), fid = nid();
-      const cover = idx === 0 || s.type === "cover";
+      const cover = (idx === 0 && spec.firstIsCover !== false) || s.type === "cover";
       const steps: El[] = [];
       const body: El[] = []; // slide-relative
       const animate = s.animate !== false;
@@ -425,7 +452,7 @@ export function buildSlides(spec: DeckSpec, theme: Theme = FRESH): any[] {
         if (animateItems) b.items.forEach((it) => steps.push({ id: nid(), effect: "fade", trigger: "advance", durationMs: 350, targets: it.ids.map((id) => ({ type: "element", id })) }));
       };
 
-      const hasContent = !!(s.bullets?.length || s.code || s.flow?.length || s.kpis?.length || s.vs || s.kv?.length || s.callouts?.length || s.image);
+      const hasContent = !!(s.bullets?.length || s.code || s.flow?.length || s.kpis?.length || s.vs || s.kv?.length || s.callouts?.length || s.image || s.mermaid);
       const divider = !cover && (s.type === "stage" || s.type === "divider" || !hasContent);
       const deckTitle = spec.title;
 
@@ -527,7 +554,7 @@ export function buildSlides(spec: DeckSpec, theme: Theme = FRESH): any[] {
         let y = top;
         const bul = splitMulti(s.bullets ?? []);
         const mode = s.layout ?? (bul.length ? detectMode(bul) : "list");
-        const bare = !bul.length && !s.code && !s.kpis?.length && !s.vs && !s.kv?.length && !s.image;
+        const bare = !bul.length && !s.code && !s.kpis?.length && !s.vs && !s.kv?.length && !s.image && !s.mermaid;
 
         if (s.flow?.length) {
           const alone = bare;
@@ -561,12 +588,20 @@ export function buildSlides(spec: DeckSpec, theme: Theme = FRESH): any[] {
           y += kb.h + 36;
         }
 
-        if (s.image) {
-          const im = s.image, ratio = (im.w ?? 1600) / (im.h ?? 900), avail = bottom - y, cap = im.caption ? 46 : 0;
+        const mm = typeof s.mermaid === "string" ? { code: s.mermaid } : s.mermaid;
+        if (s.image || mm) {
+          const im = s.image ?? { path: "", caption: mm!.caption, w: (mm!.ratio ?? mermaidRatio(mm!.code)) * 900, h: 900 };
+          const ratio = (im.w ?? 1600) / (im.h ?? 900), avail = bottom - y, cap = im.caption ? 46 : 0;
           const place = (x: number, y0: number, w: number, h: number) => {
-            const fileId = createHash("sha1").update(im.path).digest("hex");
             body.push(rect(x - 12, y0 - 12, w + 24, h + 24 + cap, cardStyle));
-            body.push({ id: nid(), type: "image", x, y: y0, width: w, height: h, fileId, status: "saved", scale: [1, 1], strokeColor: "transparent", strokeWidth: 0, roundness: null, customData: { vaultPath: im.path } });
+            if (s.image) {
+              const fileId = createHash("sha1").update(im.path).digest("hex");
+              body.push({ id: nid(), type: "image", x, y: y0, width: w, height: h, fileId, status: "saved", scale: [1, 1], strokeColor: "transparent", strokeWidth: 0, roundness: null, customData: { vaultPath: im.path } });
+            } else {
+              const bid = nid(), tid = nid(), lab = "Mermaid 图\n（运行 Mermaid to Excalidraw 脚本后生成）";
+              body.push({ id: bid, type: "rectangle", x, y: y0, width: w, height: h, strokeColor: MUTED, strokeWidth: 2, strokeStyle: "dashed", backgroundColor: "transparent", fillStyle: "solid", roughness: 0, roundness: round, boundElements: [{ type: "text", id: tid }], customData: { mermaid: mm!.code, mermaidStyle: mermaidStyle } });
+              body.push({ id: tid, type: "text", x: x + 20, y: y0 + h / 2 - 30, width: w - 40, height: 60, text: lab, originalText: lab, fontSize: 24, fontFamily: BF, lineHeight: 1.25, textAlign: "center", verticalAlign: "middle", containerId: bid, strokeColor: MUTED });
+            }
             if (im.caption) body.push(txt(x, y0 + h + 14, wrap(im.caption, 24, w), 24, MUTED, { textAlign: "center", boxW: w }));
           };
           if (ratio > 2.2 || !bul.length) {
@@ -632,7 +667,8 @@ export function buildSlides(spec: DeckSpec, theme: Theme = FRESH): any[] {
         // footer
         body.push(rect(0, H - 10, (W * (idx + 1)) / total, 10, { backgroundColor: BRAND }));
         if (deckTitle) body.push(txt(110, H - 62, deckTitle, 22, T.ink3));
-        body.push(txt(W - 260, H - 66, `${idx + 1} / ${total}`, 26, MUTED, { textAlign: "right", boxW: 150 }));
+        const label = spec.pageLabel ?? `${idx + 1} / ${total}`, lw = Math.max(150, wOf(label, 26));
+        body.push(txt(W - 110 - lw, H - 66, label, 26, MUTED, { textAlign: "right", boxW: lw }));
       }
 
       const kids = body.map((e) => ({ ...e, x: e.x + fx, y: e.y + fy, frameId: fid }));
