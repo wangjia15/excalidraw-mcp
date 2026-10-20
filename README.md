@@ -65,7 +65,17 @@ claude mcp add -s user excalidraw -e OBSIDIAN_VAULT=/path/to/vault -- node /path
 | `obsidian_list_drawings` / `obsidian_read_drawing` / `obsidian_write_drawing` | list, read and write vault drawings (professional style by default) |
 | `obsidian_write_template` (+ `obsidian_template_help`) | 11 diagram templates: layers, timeline, compare, table, tree, swimlane, quadrant, funnel, cycle, cards, flow |
 | `obsidian_write_mindmap` | XMind-style mind maps compatible with the Mindmap Builder script (all Growth Strategies, image nodes, themes, Slideshow frames) |
-| `obsidian_write_slides` | slide decks for the Slideshow script: cover / stage dividers, cards, steps, tables, flows, KPI, VS, key-value, highlighted code, images, BOPPPS elements, Marp CSS themes (campus, blackboard, ink, swiss ...) |
+| `obsidian_write_slides` | slide decks for the Slideshow script: cover / stage dividers, cards, steps, tables, flows, KPI, VS, key-value, highlighted code, images, Mermaid placeholders, BOPPPS elements, Marp CSS themes (campus, blackboard, ink, swiss ...) |
+| `obsidian_write_paper_board` | a paper as one drawing: mind map whose leaves are visual cards (annotated figures, tensor, matrix, stack, patches, bars), plus a Markdown side with a section per card |
+| `obsidian_write_card` | a single two-sided card: slide on the front, Markdown note on the back |
+
+All write tools take `back` (the Markdown side of the `.excalidraw.md`) and `properties` (frontmatter). Slide `mermaid`
+fields are written as placeholders and converted inside Obsidian by the vault script
+[`Mermaid to Excalidraw`](skills/boppps-lesson/scripts/Mermaid%20to%20Excalidraw.md), which uses the plugin's built-in
+mermaid-to-excalidraw and colours the diagram with the slide theme. Examples: [docs/examples](docs/examples).
+
+Two Claude Code skills built on these tools live in [skills/](skills/README.md): `paper-zettel` (Zettelkasten reading of
+LLM / vision papers) and `boppps-lesson` (BOPPPS teaching slides with a lesson plan on the back).
 
 Full guide (Chinese): [docs/使用手册.md](docs/使用手册.md).
 

@@ -1,0 +1,26 @@
+{
+  "title": "Spring MVC 请求处理流程",
+  "slides": [
+    { "title": "Spring MVC 请求处理流程", "subtitle": "第 5 讲 · Spring Boot 4 · 45 分钟" },
+    { "type": "stage", "stage": "b", "title": "导入", "badge": "4 分钟" },
+    { "stage": "b", "title": "点一下按钮，后台发生了什么？",
+      "callouts": [{ "kind": "ask", "text": "浏览器发出的请求，是怎么找到你写的那个方法的？" }],
+      "notes": "让学生打开开发者工具看一次请求，引出本节问题。" },
+    { "type": "stage", "stage": "o", "title": "学习目标", "badge": "1 分钟" },
+    { "stage": "o", "title": "本节课结束后你能",
+      "bullets": ["① 画出请求经过 DispatcherServlet 的 5 个步骤", "② 写出一个带路径参数的 Controller", "③ 根据日志判断 404 的原因"] },
+    { "type": "stage", "stage": "p2", "title": "参与式学习", "badge": "28 分钟" },
+    { "stage": "p2", "title": "1 DispatcherServlet 统一分发请求",
+      "mermaid": { "code": "flowchart LR\n  A[浏览器] -->|HTTP 请求| B[DispatcherServlet]\n  B --> C{HandlerMapping}\n  C --> D[Controller]\n  D --> E[视图渲染]", "caption": "一次请求的路径" },
+      "bullets": ["前端控制器：所有请求先到这里", "映射器：按 URL 找到处理器"] },
+    { "stage": "p2", "title": "2 写一个最小 Controller", "codeLang": "java",
+      "code": "@RestController\nclass HelloController {\n  @GetMapping(\"/hi/{name}\") // ①\n  String hi(@PathVariable String name) { // ②\n    return \"hi \" + name;\n  }\n}",
+      "bullets": ["① 映射 GET /hi/{name}", "② 路径变量绑定到参数"] },
+    { "stage": "p2", "title": "配对讨论：请求为什么 404？", "act": "配对讨论 · 3 分钟",
+      "vs": { "left": { "title": "能访问", "items": ["/hi/tom"] }, "right": { "title": "404", "items": ["/hi", "/Hi/tom"] } },
+      "callouts": [{ "kind": "task", "text": "对照映射规则，说出每个 404 的原因" }] },
+    { "type": "stage", "stage": "s", "title": "总结", "badge": "3 分钟" },
+    { "stage": "s", "title": "一句话：映射找方法，适配调方法",
+      "flow": ["请求", "DispatcherServlet", "HandlerMapping", "HandlerAdapter", "Controller", "响应"] }
+  ]
+}
