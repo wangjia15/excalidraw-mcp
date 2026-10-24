@@ -8,7 +8,7 @@
     {
       "name": "excalidraw-obsidian",
       "source": "./",
-      "description": "Excalidraw MCP for Obsidian vaults with the paper-zettel and boppps-lesson skills"
+      "description": "Excalidraw MCP for Obsidian vaults with paper-zettel, boppps-lesson and excalidraw-topic skills"
     }
   ]
 }

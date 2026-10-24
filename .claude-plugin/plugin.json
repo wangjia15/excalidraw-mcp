@@ -1,8 +1,8 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "excalidraw-obsidian",
-  "version": "0.4.0",
-  "description": "Excalidraw drawings in Obsidian vaults: diagram templates, mind maps, slide decks (BOPPPS, code, Mermaid), paper card boards, plus the paper-zettel and boppps-lesson skills",
+  "version": "0.5.0",
+  "description": "Excalidraw drawings in Obsidian vaults: templates, mind maps, slides, paper boards and visual knowledge cards, with paper-zettel, boppps-lesson and excalidraw-topic skills",
   "author": {
     "name": "wangjia15"
   },

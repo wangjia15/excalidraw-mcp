@@ -77,8 +77,10 @@ mermaid-to-excalidraw and colours the diagram with the slide theme. Examples: [d
 ### Claude Code plugin
 
 The repo is also a Claude Code plugin marketplace. The `excalidraw-obsidian` plugin bundles this MCP server (the committed
-`dist/index.js`, Node.js 18+, no build needed) with two skills, `paper-zettel` (Zettelkasten reading of LLM / vision
-papers) and `boppps-lesson` (BOPPPS teaching slides with a lesson plan on the back):
+`dist/index.js`, Node.js 18+, no build needed) with three skills: `paper-zettel` (Zettelkasten reading of LLM / vision
+papers), `boppps-lesson` (BOPPPS teaching slides with a lesson plan on the back), and `excalidraw-topic`
+(one drawing per topic, with 63:88 visual knowledge cards, Mindmap Builder layout, dashed relationships,
+playback frames, and a Markdown back with real frame embeds, scenarios and Mermaid):
 
 ```
 /plugin install excalidraw-obsidian --marketplace wangjia15/excalidraw-mcp
