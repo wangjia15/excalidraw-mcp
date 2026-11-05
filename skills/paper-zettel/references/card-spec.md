@@ -125,19 +125,26 @@ Q01 → M01 → M02 → R01 → K01
 
 ## Mermaid
 
-只写在背面。规则：
+只写在背面（由 Obsidian 自带的 mermaid/pele 渲染预览，pele.run/examples 所列图型都可用）。规则：
 
 - 节点文字含有 `()[]{}:;"` 或公式时**必须加引号**：`A["softmax(QKᵀ/√d)"]`
 - 公式里用 Unicode（ᵀ √ × ·），Mermaid 标签中不要写 `$…$`
 - 节点数 ≤ 12；方向用 `flowchart LR`（数据流）或 `TD`（层级）
+- 数值只用论文里的数字；某图型在预览里不渲染就退回 flowchart/timeline/xychart-beta 等常见类型
 
 | 场景 | 图型 |
 |---|---|
 | 模型数据流、张量形状变化 | `flowchart LR`，在边上标形状：`A -->|"B×N×D"| B` |
 | 多阶段训练流程 | `flowchart LR` 加 `subgraph` 分阶段 |
 | 推理时的交互（检索、工具、Agent） | `sequenceDiagram` |
-| 方法谱系 / 相关工作 | `flowchart TD` 或 `timeline` |
-| 消融结果 / 数据配比 | `xychart-beta` 或 `pie`（只用论文里的数字） |
+| 方法谱系 / 相关工作 | `timeline`（或 `flowchart TD`） |
+| 消融结果 / 性能对比 | `xychart-beta`（bar+line 可同图） |
+| 多维对比（模型/方法的能力画像） | `radar-beta` |
+| 训练数据配比 / 流向 | `pie` 或 `sankey-beta`（节点名只能 ASCII） |
+| 论文结构、方法组成速览 | `mindmap` |
+| 系统架构 | `architecture-beta` |
+
+把某个 Mermaid 图搬到 Excalidraw 面（转换脚本）时注意：只有 `flowchart`/`sequenceDiagram`/`classDiagram` 转成可编辑原生元素，其余转成一张图片，且个别图型语法与 pele 示例不同（radar 数值用花括号、architecture 边用冒号方向、sankey 节点名只能 ASCII），详见 boppps-lesson 技能 deck-spec.md 的"语法注意"。转换脚本还支持 `args {"render":"pele"}` 用 Obsidian 主题配色（pele 观感）替代课件主题配色，flowchart 等仍保持可编辑原生元素。
 
 ```mermaid
 flowchart LR

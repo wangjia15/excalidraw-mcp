@@ -14,14 +14,59 @@ fontSize?: number (default 20, before scaling), fontFamily?: number (default 2, 
 sketch?: boolean (true keeps the hand-drawn look of mermaid-to-excalidraw),
 style?: object (merged over the placeholder's customData.mermaidStyle — the slide theme palette written by the MCP:
   {fontFamily, text, line, edgeText, node:{fill,stroke}, decision:{…}, terminal:{…}, group:{…}, actor:{…}}),
-theme?: boolean (false keeps mermaid's own colours) }
-Each report entry has minFont: the smallest text size after scaling (below ~16 is hard to read on a 1920 slide).
+theme?: boolean (false keeps mermaid's own colours),
+render?: "auto" (default: slide-theme painting over the plugin conversion) | "pele" (paint the pele palette instead
+  of the slide theme: colours read from the running Obsidian theme's CSS variables, like pele does. Native elements
+  for flowchart/sequence/class stay editable and get pele colours; other diagram types keep their rendered image),
+peleTheme?: "obsidian" (default: read the live Obsidian CSS variables) | "light" | "dark" | object (paint-style
+  override merged over the computed palette: {node:{fill,stroke}, decision:{…}, terminal:{…}, group:{…}, actor:{…},
+  line, text, edgeText}) }
+Each report entry has minFont: the smallest text size after scaling (below ~16 is hard to read on a 1920 slide);
+pele entries carry pele:true.
 */
 const input = (typeof utils !== "undefined" && utils.input) || {};
 const maxScale = input.maxScale ?? 1.8;
 const viewEls = ea.getViewElements();
 const slots = viewEls.filter((e) => !e.isDeleted && typeof e.customData?.mermaid === "string" && (!input.ids || input.ids.includes(e.id)));
 const report = [];
+
+// pele palette: paint() style mapped from the running Obsidian theme's CSS variables (fixed light/dark fallbacks)
+// theme variables can hold hsl(calc(…)) or color() expressions that canvas rejects, so resolve each through a probe element
+const resolveColor = (raw, fallback) => {
+  if (!raw) return fallback;
+  try {
+    const probe = document.createElement("span");
+    probe.style.display = "none";
+    probe.style.color = fallback;
+    probe.style.color = raw;
+    document.body.appendChild(probe);
+    const c = getComputedStyle(probe).color;
+    probe.remove();
+    return /^(rgba?\(|hsla?\(|color\(|oklc?h\(|la[bb]?\()/i.test(c) ? c : fallback;
+  } catch {
+    return fallback;
+  }
+};
+const peleStyle = () => {
+  const fixed = input.peleTheme === "light" || input.peleTheme === "dark";
+  const v = (n, f) => (fixed ? f : resolveColor((getComputedStyle(document.body).getPropertyValue(n) || "").trim(), f));
+  const light = input.peleTheme !== "dark";
+  const nodeB = v("--background-secondary", light ? "#f6f6f6" : "#1b1b1b");
+  const nodeAlt = v("--background-primary-alt", light ? "#ececec" : "#262626");
+  const text = v("--text-normal", light ? "#222222" : "#dadada");
+  const muted = v("--text-muted", light ? "#666666" : "#999999");
+  const accent = v("--interactive-accent", light ? "#7c5cff" : "#a882ff");
+  const border = v("--background-modifier-border", light ? "#d4d4d4" : "#3f3f3f");
+  const palette = {
+    text, line: border, edgeText: muted,
+    node: { fill: nodeB, stroke: accent },
+    decision: { fill: nodeAlt, stroke: accent },
+    terminal: { fill: nodeAlt, stroke: accent },
+    group: { fill: nodeAlt, stroke: border },
+    actor: { fill: nodeB, stroke: accent },
+  };
+  return input.peleTheme && typeof input.peleTheme === "object" ? merge(palette, input.peleTheme) : palette;
+};
 
 const merge = (a, b) => {
   const o = { ...(a ?? {}) };
@@ -30,7 +75,7 @@ const merge = (a, b) => {
 };
 const SHAPES = ["rectangle", "ellipse", "diamond"];
 const inside = (a, b) => a !== b && a.x >= b.x && a.y >= b.y && a.x + a.width <= b.x + b.width && a.y + a.height <= b.y + b.height;
-// paint the converted diagram with the slide theme
+// paint the converted diagram with the given palette (slide theme or pele)
 const paint = (els, st, isSeq) => {
   const shapes = els.filter((e) => SHAPES.includes(e.type));
   for (const e of els) {
@@ -77,17 +122,31 @@ const boundsOf = (els) => {
   return { x0, y0, x1, y1 };
 };
 
+// remove the placeholder box and its bound label, commit the EA workbench to the view, report
+const commit = async (ph, els, extra) => {
+  const labelIds = (ph.boundElements ?? []).filter((x) => x.type === "text").map((x) => x.id);
+  ea.copyViewElementsToEAforEditing(viewEls.filter((e) => e.id === ph.id || labelIds.includes(e.id)));
+  for (const id of [ph.id, ...labelIds]) { const e = ea.getElement(id); if (e) e.isDeleted = true; }
+  await ea.addElementsToView(false, true, true);
+  const texts = els.filter((e) => e.type === "text");
+  report.push({ id: ph.id, ok: true, elements: els.length,
+    minFont: texts.length ? Math.round(Math.min(...texts.map((e) => e.fontSize))) : null, ...extra });
+};
+
 for (const ph of slots) {
+  // pele mode: native elements painted with the pele palette (Obsidian CSS variables) instead of the slide theme;
+  // image-type diagrams keep their rendered image
+  const pele = (input.render ?? ph.customData.mermaidRender) === "pele";
   ea.clear();
   ea.style.fontSize = input.fontSize ?? 20;
   ea.style.fontFamily = input.fontFamily ?? ph.customData.mermaidStyle?.fontFamily ?? 2;
   ea.style.roughness = 0;
   const res = await ea.addMermaid(ph.customData.mermaid, true);
-  if (typeof res === "string") { report.push({ id: ph.id, ok: false, error: res }); continue; }
+  if (typeof res === "string") { report.push({ id: ph.id, ok: false, error: res, pele: pele || undefined }); continue; }
   const els = ea.getElements();
-  if (!els.length) { report.push({ id: ph.id, ok: false, error: "mermaid produced no elements" }); continue; }
-  const st = merge(ph.customData.mermaidStyle, input.style);
-  if (input.theme !== false) paint(els, st, /^\s*sequenceDiagram/.test(ph.customData.mermaid));
+  if (!els.length) { report.push({ id: ph.id, ok: false, error: "mermaid produced no elements", pele: pele || undefined }); continue; }
+  const st = pele ? peleStyle() : merge(ph.customData.mermaidStyle, input.style);
+  if (input.theme !== false || pele) paint(els, st, /^\s*sequenceDiagram/.test(ph.customData.mermaid));
   // match the slide: clean lines and the slide font (mermaid-to-excalidraw uses the sketchy defaults)
   if (input.sketch !== true) {
     for (const e of els) if ("roughness" in e) e.roughness = 0;
@@ -125,14 +184,7 @@ for (const ph of slots) {
     if (e.type === "text") e.fontSize *= s;
     e.frameId = ph.frameId ?? null;
   }
-  // remove the placeholder box and its bound label
-  const labelIds = (ph.boundElements ?? []).filter((x) => x.type === "text").map((x) => x.id);
-  ea.copyViewElementsToEAforEditing(viewEls.filter((e) => e.id === ph.id || labelIds.includes(e.id)));
-  for (const id of [ph.id, ...labelIds]) { const e = ea.getElement(id); if (e) e.isDeleted = true; }
-  await ea.addElementsToView(false, true, true);
-  const texts = els.filter((e) => e.type === "text");
-  const minFont = texts.length ? Math.round(Math.min(...texts.map((e) => e.fontSize))) : null;
-  report.push({ id: ph.id, ok: true, elements: els.length, scale: Math.round(s * 100) / 100, minFont });
+  await commit(ph, els, { scale: Math.round(s * 100) / 100, pele: pele || undefined });
 }
 ea.clear();
 if (report.some((r) => r.ok)) await ea.targetView?.forceSave?.(true); // flush every conversion to disk

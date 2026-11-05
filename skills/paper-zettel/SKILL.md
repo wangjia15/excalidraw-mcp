@@ -20,6 +20,7 @@ description: 用卡片盒笔记法精读大语言模型（LLM）与计算机视�
 | 生成工具 | 本插件的 MCP 工具（名字以 `obsidian_` 结尾，如 `obsidian_write_paper_board`）。每次调用都传 `vault: "<VAULT>"` |
 | 图表截取 | `python -I <本技能目录>/scripts/pdf_figures.py`（PyMuPDF；本技能目录 = 加载技能时显示的 Base directory） |
 | 验证/精修 | `obsidian vault=<VNAME> obsidian-excalidraw-plugin:<命令>`（Windows 上不在 PATH 时用 `"$LOCALAPPDATA/Programs/Obsidian/Obsidian.com"`） |
+| Mermaid 转 Excalidraw | vault 脚本 `Excalidraw/Scripts/Mermaid to Excalidraw.md`（缺失时用 `obsidian_install_vault_files` 安装）。本技能流程不依赖它；临时在 vault 里做幻灯或把 Mermaid 转成图形时经 CLI `script` 运行 |
 | CLI 规则 | 第一次用 CLI 前跑 `schema` 看各命令的参数，见 [references/tools.md](references/tools.md) |
 
 1. 如果找不到 `obsidian_write_paper_board`，提示用户检查插件是否启用（`/plugin`）并重启 Claude Code。
@@ -56,7 +57,7 @@ description: 用卡片盒笔记法精读大语言模型（LLM）与计算机视�
 
 - **概念图**优先用内置图形（`tensor`、`matrix`、`stack`、`patches`、`bars`、`template`），没有合适的再用 `sketch`（手绘元素）。用法见 [references/card-spec.md](references/card-spec.md#图形visual) 和 [references/sketching.md](references/sketching.md)。
 - **公式**：正面需要渲染公式时，生成后用 CLI `apply` 的 `latex` 操作加上；背面直接写 `$...$`。
-- **Mermaid**：只写在背面（每张卡的 `back` 或文献笔记）。规则见 [references/card-spec.md](references/card-spec.md#mermaid)。
+- **Mermaid**：只写在背面（每张卡的 `back` 或文献笔记），由 Obsidian 预览渲染，pele.run/examples 所列图型都可用——按场景选：谱系 `timeline`、消融/性能 `xychart-beta`、多维对比 `radar-beta`、结构速览 `mindmap`、配比 `pie`/`sankey-beta`、架构 `architecture-beta`。见 [references/card-spec.md](references/card-spec.md#mermaid)。
 
 ## 4. 安全与边界
 

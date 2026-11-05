@@ -33,8 +33,10 @@ P="springboot4/05 Spring MVC 请求流程/05 Spring MVC 请求流程 课件.exca
 
 - 必须先 `open`（脚本作用于打开的视图）。
 - 返回 `data.summary` 形如 `Mermaid to Excalidraw: 3/3 converted`；`data.report[]` 每项 `{id, ok, elements, scale}` 或 `{id, ok:false, error}`。
+- **结果判读**：`elements` > 1 = 原生元素（flowchart/sequence/class，可编辑、上主题色）；`elements: 1`、`minFont: null` = 整图转成一张图片（timeline、xychart-beta、mindmap、radar-beta、pie 等 pele 新图型都是这种，保留 mermaid 配色，`args.style` 对它无效）。
 - 可选 `args='{"maxScale":1.8,"fontSize":20,"sketch":false}'`；`ids` 只转指定占位框。
 - 每项 report 有 `minFont`（缩放后最小字号）：< 16 在 1920 宽的幻灯片上偏小 → 改 `TD`、减节点、缩短标签，或去掉该页 bullets 让图占满整页。
+- `open`/`script`/`read source=live` 返回 `BUSY: Drawing is loading…` 且几十秒不恢复（MCP `overwrite` 重写一个正打开的课件后可能出现）：不要反复重试——请用户在 Obsidian 里切到别的标签页再切回来，或把 deck 写到**新路径**继续；卡住的旧文件等视图恢复后再处理。
 
 ### 按主题微调 Mermaid 图
 
@@ -58,6 +60,7 @@ MCP 写占位框时把当前 `theme` 的配色存进 `customData.mermaidStyle`�
 ```
 
 - `args.theme:false` 保留 mermaid 原色；`args.sketch:true` 保留手绘风格。
+- **pele 样式**：`args='{"render":"pele"}'` 用 **pele 配色替代课件主题配色**——颜色读自当前 Obsidian 主题的 CSS 变量（`--background-secondary`、`--interactive-accent` 等，经 DOM 探针解析成 `rgb()`；`peleTheme:"light"|"dark"|{paint 样式对象}` 覆盖）。flowchart/sequence/class 仍是**可编辑原生元素**、只是换成 pele 配色；图片型图型保持原渲染不变。`report[].pele:true` 标记。
 - 脚本只处理还没转换的占位框；要换配色重新转：先 MCP `overwrite` 重写（占位框回来），再带新 `args` 运行。只改个别元素用 `apply`。
 - `persistence` 可能是 `unknown`：脚本最后会 `forceSave`，以 `export source=disk` 的结果为准。
 - 脚本缺失时：调用 `obsidian_install_vault_files`（`items:["scripts"]`，先看计划，用户同意后 `apply:true`）。

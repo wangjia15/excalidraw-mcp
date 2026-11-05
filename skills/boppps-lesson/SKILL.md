@@ -1,6 +1,6 @@
 ---
 name: boppps-lesson
-description: 按 BOPPPS 教学模式生成教学用 PPT 和配套教案：一个 Excalidraw 文档 = 一讲课。正面（Excalidraw 面）是 16:9 幻灯片（BOPPPS 六点进度、环节分隔页、时长徽章、代码高亮、Mermaid 图经插件内置 mermaid-to-excalidraw 转成原生图形、网上搜集的配图、逐条动画、演讲者备注，可用 Slideshow 放映），背面（Markdown 面）是根据这套 PPT 写的完整教案（学情、目标、重难点、BOPPPS 教学过程表、板书、作业、反思、图片来源），后面逐页附幻灯片引用和该页讲稿。用户提供资料就读资料，没提供就上网搜索教学内容。存入用户的 Obsidian vault，生成用本插件的 Excalidraw MCP 工具，Mermaid 转换与验图用 Obsidian Excalidraw 原生 CLI。当用户说"做一讲课件/PPT + 教案""按 BOPPPS 设计一节课""生成教学 PPT 和教案""给 X 主题备课"，或给出教材/讲义/链接希望做成课件和教案时使用。
+description: 按 BOPPPS 教学模式生成教学用 PPT 和配套教案：一个 Excalidraw 文档 = 一讲课。正面（Excalidraw 面）是 16:9 幻灯片（BOPPPS 六点进度、环节分隔页、时长徽章、代码高亮、Mermaid 图经插件内置 mermaid-to-excalidraw 转成原生图形或图片——含 pele.run/examples 新图型 xychart/timeline/mindmap/radar/quadrant/sankey/architecture/packet/gitGraph/pie 等、网上搜集的配图、逐条动画、演讲者备注，可用 Slideshow 放映），背面（Markdown 面）是根据这套 PPT 写的完整教案（学情、目标、重难点、BOPPPS 教学过程表、板书、作业、反思、图片来源），后面逐页附幻灯片引用和该页讲稿。用户提供资料就读资料，没提供就上网搜索教学内容。存入用户的 Obsidian vault，生成用本插件的 Excalidraw MCP 工具，Mermaid 转换与验图用 Obsidian Excalidraw 原生 CLI。当用户说"做一讲课件/PPT + 教案""按 BOPPPS 设计一节课""生成教学 PPT 和教案""给 X 主题备课"，或给出教材/讲义/链接希望做成课件和教案时使用。
 ---
 
 # BOPPPS 课件 + 教案（boppps-lesson）
@@ -42,11 +42,11 @@ description: 按 BOPPPS 教学模式生成教学用 PPT 和配套教案：一个
    - 把关键事实、术语、常见误区、好的例子记下来，作为设计输入。
 3. **BOPPPS 设计**：按 [references/boppps.md](references/boppps.md) 定每个环节的时长、活动和对应幻灯片。先写目标（O，可测量的动词），再倒推前测（P1）和后测（P3）题目，后测必须能检验每个目标。
 4. **素材**：
-   - **Mermaid**：流程、时序、类关系、状态机、架构用 `mermaid` 字段画在幻灯片上；教案背面可直接写 ```` ```mermaid ```` 代码块。规则见 [references/deck-spec.md](references/deck-spec.md#mermaid)。
+   - **Mermaid**：可视化内容**优先用 Mermaid 图型**而不是纯文字页——数值对比 `xychart-beta`、演进 `timeline`、知识结构 `mindmap`、多维对比 `radar-beta`、选型 `quadrantChart`、占比 `pie`/`sankey-beta`、架构 `architecture-beta`/`block-beta`、报文 `packet-beta`、分支 `gitGraph`、流程/时序/类关系 `flowchart`/`sequenceDiagram`/`classDiagram`（pele.run/examples 所列类型均支持；图型选择与语法坑见 [references/deck-spec.md](references/deck-spec.md#mermaid)）。教案背面可直接写 ```` ```mermaid ```` 代码块。
    - **代码**：`code` 字段，≤ 18 行，只保留讲解要用的部分，用注释 `// ①` 与要点编号对应。
    - **网图**：见 [references/deck-spec.md](references/deck-spec.md#网上图片)。优先用有开放许可的图（Wikimedia Commons、官方文档图），下载到 `<讲目录>/assets/`，用 Read 看一遍确认内容合适，来源和许可写进教案。找不到合适的图时，用 `mcp__magpie-image__generate_image` 生成示意图作为后备，并在来源里注明"AI 生成"。
 5. **写课件**：一次 `obsidian_write_slides` 写入：`deck` = 幻灯片（**每页都写 `notes` 讲稿**，规则见 [deck-spec.md](references/deck-spec.md#讲稿notes)），`back` = 教案全文（不含幻灯片与讲稿段），`properties` = frontmatter，`theme` 默认 `campus`。写完用 `obsidian_read_drawing`（`withBack:true`）确认背面的 `## 幻灯片与讲稿` 页数 = 幻灯片数、内容页都有讲稿。
-6. **转换 Mermaid**：CLI `open` 打开课件，再执行 `script`，运行 `Mermaid to Excalidraw.md`，确认 `summary` 里转换数 = 占位框数，失败的按 `report[].error` 改 Mermaid 代码后重写重转。脚本会按课件主题给图上色（节点/判断/分组/连线/文字），需要时用 `args.style` 微调配色；`report[].minFont` < 16 说明图字太小，要改图。见 [references/tools.md](references/tools.md)。
+6. **转换 Mermaid**：CLI `open` 打开课件，再执行 `script`，运行 `Mermaid to Excalidraw.md`，确认 `summary` 里转换数 = 占位框数，失败的按 `report[].error` 改 Mermaid 代码后重写重转。`flowchart`/`sequenceDiagram`/`classDiagram` 转成**原生元素**并按课件主题上色（节点/判断/分组/连线/文字，可用 `args.style` 微调）；其余图型（timeline、xychart-beta、mindmap、radar-beta…）转成**一张图片**，保留 mermaid 自身配色、不上主题色。原生图的 `report[].minFont` < 16 说明字太小，要改图。见 [references/tools.md](references/tools.md)。
 7. **验图**：CLI `export source=disk` 导出 PNG，用 Read 看：文字溢出/重叠、Mermaid 图是否太小、代码是否完整、图片是否显示、六点进度是否对应环节。
 8. **精修**：改 deck 后 `overwrite:true` 重写（不传 `back` 时教案保留，幻灯片与讲稿段按新 deck 重新生成；改讲稿就改 `notes`），**然后必须重新跑一次 Mermaid 转换**（重写会恢复成占位框）。用户手改过的文件不要覆盖，改用 CLI `apply` 局部修改。
 9. **汇报**：文件路径、幻灯片清单（序号/环节/标题/时长/用了什么图）、教案要点、图片来源、预览 PNG 路径、实际做过的检查和未验证的部分。

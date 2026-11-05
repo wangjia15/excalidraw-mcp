@@ -59,13 +59,38 @@
 
 ## Mermaid
 
-正面的 `mermaid` 先写成占位框（虚线框 + 代码保存在 `customData.mermaid`，主题配色在 `customData.mermaidStyle`），再由 CLI 运行 `Mermaid to Excalidraw` 脚本，调用插件内置的 mermaid-to-excalidraw 转成原生元素，并按课件主题上色、换字体、去手绘、按占位框缩放（见 [tools.md](tools.md#按主题微调-mermaid-图)）。
+正面的 `mermaid` 先写成占位框（虚线框 + 代码保存在 `customData.mermaid`，主题配色在 `customData.mermaidStyle`），再由 CLI 运行 `Mermaid to Excalidraw` 脚本，调用插件内置的 mermaid-to-excalidraw 转换，并按占位框缩放（见 [tools.md](tools.md#按主题微调-mermaid-图)）。**可视化内容尽量用 Mermaid 图型，少做纯文字页。**转换结果分两种：
 
-- 支持良好：`flowchart`/`graph`、`sequenceDiagram`、`classDiagram`；其他类型（`stateDiagram`、`erDiagram`、`gantt`、`pie`…）插件会转成**图片**，也能显示但不可编辑。
-- `flowchart LR` 节点 ≤ 6 个，多了用 `TD` 或拆两页（横向太长时缩放后字很小）；任何图 ≤ 10 个节点。
-- 节点文字含 `()[]{}:;"` 时加引号：`A["service()"]`。中文可以直接写。
-- `ratio`（宽/高）一般不用填：LR 2.4、TD 1.1、sequence 1.5、其他 1.6。图明显偏扁/偏高时再调。
-- 简单线性流程优先用 `flow`（不需要转换）。
+- **原生元素**（可编辑、按课件主题上色、去手绘）：`flowchart`/`graph`、`sequenceDiagram`、`classDiagram`
+- **图片元素**（整图转成一张图片，可显示、保留 mermaid 自身浅色配色、不可编辑、不套主题色、`minFont` 为 null）：其余类型都支持——`timeline`、`mindmap`、`xychart-beta`、`quadrantChart`、`radar-beta`、`sankey-beta`、`block-beta`、`packet-beta`、`gitGraph`、`pie`、`architecture-beta`、`journey`、`gantt`、`erDiagram`、`stateDiagram` 等（pele.run/examples 所列类型；2026-11 在 Excalidraw 2.29.1 实测前 12 种全部转换成功）
+- **pele 样式模式**：转换脚本加 `args {"render":"pele"}` 时用 Obsidian 主题的 CSS 变量配色替代课件主题配色（pele 观感）；flowchart/sequence/class 仍是可编辑原生元素，图片型图型不变；见 [tools.md](tools.md#转换-mermaid)
+
+### 按内容选图型
+
+| 想表达 | 图型 |
+|---|---|
+| 数值对比、消融、趋势 | `xychart-beta`（bar 和 line 可同图） |
+| 演进历程、方法谱系、课程回顾 | `timeline` |
+| 知识结构、章节小结 | `mindmap` |
+| 多维度对比（模型、方案） | `radar-beta` |
+| 选型、优先级讨论 | `quadrantChart` |
+| 占比、配比、流向 | `pie`；流向配比用 `sankey-beta` |
+| 系统架构、部署组成 | `architecture-beta`；简单模块关系用 `block-beta` |
+| 网络协议报文头 | `packet-beta` |
+| 分支 / 版本管理演示 | `gitGraph` |
+| 流程、数据流 | `flowchart`（原生） |
+| 交互时序、类关系 | `sequenceDiagram`、`classDiagram`（原生） |
+
+简单线性流程仍优先用 `flow` 字段（不需要转换）。
+
+### 语法注意（转换器实测，2026-11）
+
+- 节点/标签含 `()[]{}:;"` 时加引号：`A["service()"]`。中文一般可直接写。
+- `radar-beta`：数值用**花括号** `curve c1["CNN"]{70, 60, 80, 90, 95}`（pele 示例的冒号写法不被转换器识别）。
+- `architecture-beta`：没有 `storage` 关键字，统一写 `service 名(图标)[标签] in 组名`（图标：server/browser/database/cloud…）；边用**冒号方向**语法 `a:R --> L:b`（方向 R/L/T/B）。
+- `sankey-beta`：节点名**只能 ASCII**（中文名加引号也解析失败），中文说明放 `caption`。
+- `flowchart LR` 节点 ≤ 6 个，多了用 `TD` 或拆两页（横向太长时缩放后字很小）；任何图 ≤ 12 个节点。
+- `ratio`（宽/高）参考：timeline/packet 2.2、gitGraph 2.0、xychart/sankey 1.7、architecture/block 1.5–1.6、mindmap 1.2、quadrant 1.1、radar/pie 1.0；图明显偏扁/偏高时再调。
 
 ## 网上图片
 
